@@ -24,7 +24,7 @@ T - bumbas atskaites laika palielinasana
 **/
 
 //funkcijai jaizveido laukums un jasagatavo speles sakums
-void start(FILE conf){
+void start(FILE *conf){
 ///apstrada konfiguracijas faila doto informaciju
 ///<augst> <plat> <atrums> <boom ilgums> <boom attalums> <boom atskaite>
 ///laukuma karte
@@ -32,7 +32,7 @@ void start(FILE conf){
 }
 
 int main(){
-    FILE conf = fopen("config", "r");
+    FILE *conf = fopen("config", "r");//* pieliku jo bēsī tā kļūda
 
     initscr();
 
