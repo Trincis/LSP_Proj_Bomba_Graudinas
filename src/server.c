@@ -64,3 +64,51 @@ int main() {
 
     return 0;
 }
+
+void handle_message(int sock, msg_header_t *h, uint8_t *payload) {
+    switch (h->msg_type) {
+
+    case MSG_HELLO: {
+        int id = h->sender_id;
+        client_t *c = get_client(id);
+        if (!c) {
+            printf("HELLO from unknown id %d\n", id);
+            return;
+        }
+
+        // payload: 20 baiti client identifier + 30 baiti player name
+        char client_id[21];
+        char player_name[31];
+
+        memcpy(client_id, payload, 20);
+        client_id[20] = '\0';
+
+        memcpy(player_name, payload + 20, 30);
+        player_name[30] = '\0';
+
+        strncpy(c->name, player_name, 30);
+        c->name[30] = '\0';
+
+        printf("HELLO from client %d: prog=\"%s\" name=\"%s\"\n",
+               id, client_id, c->name);
+
+        // WELCOME: server_id[20], status, count, (pag. count=0)
+        uint8_t buf[64];
+        char server_id[20] = "BomberServer 1.0";
+        memcpy(buf, server_id, 20);
+        buf[20] = 0;   // GAME_LOBBY
+        buf[21] = 0;   // pagaidām nav citu klientu
+
+        send_msg(sock, MSG_WELCOME, (uint8_t)id, (uint8_t)id, buf, 22);
+        break;
+    }
+
+    case MSG_PING:
+        send_msg(sock, MSG_PONG, SERVER_ID, h->sender_id, NULL, 0);
+        break;
+
+    default:
+        printf("Unknown message type %d from %d\n", h->msg_type, h->sender_id);
+        break;
+    }
+}

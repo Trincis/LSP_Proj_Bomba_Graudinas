@@ -15,7 +15,7 @@ typedef enum laucini{
     TILE_BIGGER = 'R',
     TILE_LONGER = 'T',
     TILE_BOOM = '*'
-}
+}TileType;
 
 typedef struct GameConfig{
     int row;
@@ -30,9 +30,9 @@ typedef struct GameConfig{
     int player_spawn_x[mAX_PLAYERS+1];
     int player_spawn_y[mAX_PLAYERS+1];
 
-}
+}GameConfig;
 
-int config_load(GameConfig *congif, const char *filename);
+int game_config_load(GameConfig *config, const char *filename);
 void map_render(WINDOW *win, const GameConfig *cfg);
 
 #endif

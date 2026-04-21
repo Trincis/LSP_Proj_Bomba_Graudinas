@@ -2,13 +2,13 @@
 #include <stdio.h>
 #include <string.h>
 
-int config_load(GameConfig *congif, const char *filename){
+int game_config_load(GameConfig *config, const char *filename){
     FILE *fin = fopen(filename, "r");
     if(!fin){
         return -1;
     }
 
-    fscanf(fin, "%d %d %d %d %d %d", &config->row, &config->col, &config->pl_speed, &config->exp_danger, &config->exp_distance, &config->fuse_time)
+    fscanf(fin, "%d %d %d %d %d %d", &config->row, &config->col, &config->pl_speed, &config->exp_danger, &config->exp_distance, &config->fuse_time);
 
     
 }
@@ -16,7 +16,7 @@ int config_load(GameConfig *congif, const char *filename){
 int main(){
     initscr();
     cbreak();
-    noecho()
+    noecho();
     keypad(stdscr, TRUE);
     curs_set(0);
 
