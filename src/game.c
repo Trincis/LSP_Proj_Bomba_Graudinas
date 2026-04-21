@@ -13,7 +13,7 @@ int game_config_load(GameConfig *config, const char *filename){
     
 }
 
-int main(){
+/*int main(){
     initscr();
     cbreak();
     noecho();
@@ -25,4 +25,4 @@ int main(){
     endwin();
 
     return 0;
-}
+}*/

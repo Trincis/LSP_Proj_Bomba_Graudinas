@@ -1,5 +1,5 @@
 # Kompilē ar make
-#palaiž ar ./bomberman_server
+# Palaiž ar ./bomberman_server
 # Lai iztīrītu kompilētos failus, izmanto make clean
 
 CC = gcc
@@ -15,13 +15,13 @@ OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-    $(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-    mkdir -p $(BUILD_DIR)
-    $(CC) $(CFLAGS) -c $< -o $@
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-    rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET)
 
 .PHONY: all clean
