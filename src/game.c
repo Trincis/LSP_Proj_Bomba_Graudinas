@@ -117,3 +117,12 @@ void map_render(WINDOW *w, const GameConfig *cfg){
     }
     wrefresh(w);
 }
+
+void players_render(WINDOW *w, const Player *speletaji, int sk){
+    for(int i=0; i<sk; i++){
+        if(speletaji[i].dzivs){
+            mvwaddch(w, speletaji[i].y, speletaji[i].x*2, '0'+speletaji[i].id);
+        }
+    }
+    wrefresh(w);
+}

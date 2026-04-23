@@ -1,3 +1,1 @@
-Loaded: 6 rows, 9 cols
-Tile[0][0] = H
-Terminal size: 24 rows, 80 cols
+Player 1 spawn: x=1 y=0 alive=1

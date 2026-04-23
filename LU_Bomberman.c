@@ -31,6 +31,14 @@ int main(){
         return 1;
     }
 
+    Player speletaji[MAX_PLAYERS+1];
+
+    for(int i=0; i<=MAX_PLAYERS; i++){
+        speletaji[i].id = i;
+        speletaji[i].x = config.player_spawn_x[i];
+        speletaji[i].y = config.player_spawn_y[i];
+        speletaji[i].dzivs = (config.player_spawn_x[i]!=-1); 
+    }
 
     initscr();
     cbreak();
@@ -41,7 +49,7 @@ int main(){
     refresh();
 
     ///ekrāns
-    WINDOW *win = newwin(config.row+1, config.col*2+1, 0, 0);
+    WINDOW *win = newwin(config.row+2, config.col*2+1, 1, 0);
 
     if(win == NULL){
         endwin();
@@ -49,8 +57,11 @@ int main(){
         return 1;
     }
 
+
+
     ///kartes renderēšana
     map_render(win, &config);
+    players_render(win, speletaji, MAX_PLAYERS);
 
     ///sagaidīt pogas spiedienu
     getch();

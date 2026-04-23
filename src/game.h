@@ -32,7 +32,15 @@ typedef struct{
 
 }GameConfig;
 
+typedef struct{
+    int x;
+    int y;
+    int id;
+    int dzivs;
+} Player;
+
 int game_config_load(GameConfig *config, const char *filename);
 void map_render(WINDOW *win, const GameConfig *cfg);
+void players_render(WINDOW *w, const Player *speletaji, int sk);
 
 #endif
