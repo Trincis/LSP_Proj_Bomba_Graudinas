@@ -117,17 +117,3 @@ void map_render(WINDOW *w, const GameConfig *cfg){
     }
     wrefresh(w);
 }
-
-/*int main(){
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    curs_set(0);
-
-    ///spēles kods
-
-    endwin();
-
-    return 0;
-}*/

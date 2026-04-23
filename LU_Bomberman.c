@@ -10,6 +10,7 @@ Autori: Barbara Terēze Graudiņa, bg24008
 
 Programma izveidota: ??.04.2026
 **/
+#include "src/game.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ncurses.h>
@@ -23,20 +24,41 @@ R - radiusa palielinasana
 T - bumbas atskaites laika palielinasana
 **/
 
-//funkcijai jaizveido laukums un jasagatavo speles sakums
-void start(FILE *conf){
-///apstrada konfiguracijas faila doto informaciju
-///<augst> <plat> <atrums> <boom ilgums> <boom attalums> <boom atskaite>
-///laukuma karte
-
-}
-
 int main(){
-    FILE *conf = fopen("config", "r");//* pieliku jo bēsī tā kļūda
+    GameConfig config;
+    if(game_config_load(&config, "map.cfg")!=0){
+        fprintf(stderr, "Failed to load map.cfg\n");
+        return 1;
+    }
+
 
     initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    clear();
+    refresh();
 
-    start(conf);
+    ///ekrāns
+    WINDOW *win = newwin(config.row+1, config.col*2+1, 0, 0);
+
+    if(win == NULL){
+        endwin();
+        fprintf(stderr, "Failed to create window\n");
+        return 1;
+    }
+
+    ///kartes renderēšana
+    map_render(win, &config);
+
+    ///sagaidīt pogas spiedienu
+    getch();
+
+    ///spēles kods
+
+    delwin(win);
+    endwin();
 
     return 0;
 }
