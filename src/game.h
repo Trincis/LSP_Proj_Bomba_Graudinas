@@ -4,9 +4,9 @@
 #include <ncurses.h>
 
 #define MAX_MAP_SIZE 255
-#define mAX_PLAYERS 8
+#define MAX_PLAYERS 8
 
-typedef enum laucini{
+typedef enum{
     TILE_FLOOR = '.',
     TILE_WALL = 'H',
     TILE_BLOCK = 'S',
@@ -17,7 +17,7 @@ typedef enum laucini{
     TILE_BOOM = '*'
 }TileType;
 
-typedef struct GameConfig{
+typedef struct{
     int row;
     int col;
     int pl_speed;
@@ -27,8 +27,8 @@ typedef struct GameConfig{
 
     TileType tiles[MAX_MAP_SIZE][MAX_MAP_SIZE];
 
-    int player_spawn_x[mAX_PLAYERS+1];
-    int player_spawn_y[mAX_PLAYERS+1];
+    int player_spawn_x[MAX_PLAYERS+1];
+    int player_spawn_y[MAX_PLAYERS+1];
 
 }GameConfig;
 
