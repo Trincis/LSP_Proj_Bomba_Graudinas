@@ -33,6 +33,7 @@ typedef struct {
     uint8_t msg_type;
     uint8_t sender_id;
     uint8_t target_id;
+    uint16_t payload_len;
 } msg_header_t;
 
 #endif

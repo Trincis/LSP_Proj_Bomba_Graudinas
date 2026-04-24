@@ -1,114 +1,197 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <string.h>
+#include <sys/select.h>
 
-#include "protocol.h"
-#include "network.h"
 #include "clients.h"
+#include "network.h"
+#include "protocol.h"
+#include "game.h"
 
 #define PORT 5000
 
-void handle_message(int sock, msg_header_t *h, uint8_t *payload);
+GameConfig g_cfg;
 
-int main() {
-    init_clients();
+void debug_print_map() {
+    printf("=== DEBUG: Loaded map (%d x %d) ===\n", g_cfg.row, g_cfg.col);
+    for (int y = 0; y < g_cfg.row; y++) {
+        for (int x = 0; x < g_cfg.col; x++) {
+            char ch;
+            switch (g_cfg.tiles[y][x]) {
+                case TILE_WALL:   ch = 'H'; break;
+                case TILE_BLOCK:  ch = 'S'; break;
+                case TILE_BOMB:   ch = 'B'; break;
+                case TILE_FASTER: ch = 'A'; break;
+                case TILE_BIGGER: ch = 'R'; break;
+                case TILE_LONGER: ch = 'T'; break;
+                case TILE_BOOM:   ch = '*'; break;
+                default:          ch = '.'; break;
+            }
+            printf("%c", ch);
+        }
+        printf("\n");
+    }
+    printf("===================================\n");
+}
 
-    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0) { perror("socket"); exit(1); }
+void send_map(int sock) {
+    printf("DEBUG: Sending map to client...\n");
 
-    struct sockaddr_in addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(PORT),
-        .sin_addr.s_addr = INADDR_ANY
-    };
+    uint8_t buf[65535];
+    int pos = 0;
 
-    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind"); exit(1);
+    buf[pos++] = g_cfg.row;
+    buf[pos++] = g_cfg.col;
+
+    for (int y = 0; y < g_cfg.row; y++) {
+        for (int x = 0; x < g_cfg.col; x++) {
+            char ch;
+            switch (g_cfg.tiles[y][x]) {
+                case TILE_WALL:   ch = 'H'; break;
+                case TILE_BLOCK:  ch = 'S'; break;
+                case TILE_BOMB:   ch = 'B'; break;
+                case TILE_FASTER: ch = 'A'; break;
+                case TILE_BIGGER: ch = 'R'; break;
+                case TILE_LONGER: ch = 'T'; break;
+                case TILE_BOOM:   ch = '*'; break;
+                default:          ch = '.'; break;
+            }
+            buf[pos++] = (uint8_t)ch;
+        }
     }
 
-    if (listen(server_fd, 8) < 0) {
-        perror("listen"); exit(1);
+    printf("DEBUG: Map payload size = %d bytes\n", pos);
+    send_msg(sock, MSG_SET_STATUS, SERVER_ID, 0, buf, pos);
+}
+
+void handle_message(int sock, int id, msg_header_t *h) {
+    switch (h->msg_type) {
+
+        case MSG_HELLO:
+            printf("Client %d says HELLO\n", id);
+
+            printf("DEBUG: Sending WELCOME...\n");
+            send_msg(sock, MSG_WELCOME, SERVER_ID, id, NULL, 0);
+
+            printf("DEBUG: Sending MAP...\n");
+            send_map(sock);
+            break;
+
+        case MSG_PING:
+            send_msg(sock, MSG_PONG, SERVER_ID, id, NULL, 0);
+            break;
+
+        case MSG_LEAVE:
+        case MSG_DISCONNECT:
+            printf("Client %d disconnected\n", id);
+            remove_client(id);
+            close(sock);
+            break;
+
+        default:
+            printf("Unknown msg %d from %d\n", h->msg_type, id);
+            break;
+    }
+}
+
+int main() {
+    printf("Loading map...\n");
+    if (game_config_load(&g_cfg, "map.cfg") != 0) {
+        printf("Failed to load map!\n");
+        return 1;
+    }
+
+    printf("DEBUG: MAP AFTER LOAD:\n");
+    debug_print_map();
+
+    // DEBUG: IZDRUKĀ KARTI, KĀDU SERVERIS TO REDZ
+    debug_print_map();
+
+    init_clients();
+
+    int server = socket(AF_INET, SOCK_STREAM, 0);
+    if (server < 0) {
+        perror("socket");
+        return 1;
+    }
+
+    int opt = 1;
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(PORT);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(server, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        return 1;
+    }
+
+    if (listen(server, 8) < 0) {
+        perror("listen");
+        return 1;
     }
 
     printf("Server running on port %d\n", PORT);
 
     while (1) {
-        int client_sock = accept(server_fd, NULL, NULL);
-        if (client_sock < 0) continue;
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(server, &rfds);
+        int maxfd = server;
 
-        int id = add_client(client_sock);
-        if (id < 0) {
-            printf("Server full, rejecting client\n");
-            send_msg(client_sock, MSG_DISCONNECT, SERVER_ID, 255, NULL, 0);
-            close(client_sock);
-            continue;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (clients[i].connected && clients[i].sock >= 0) {
+                FD_SET(clients[i].sock, &rfds);
+                if (clients[i].sock > maxfd) maxfd = clients[i].sock;
+            }
         }
 
-        printf("Client connected with ID %d\n", id);
-
-        msg_header_t h;
-        uint8_t payload[1024];
-
-        while (1) {
-            int r = recv_msg(client_sock, &h, payload, sizeof(payload));
-            if (r <= 0) break;
-
-            handle_message(client_sock, &h, payload);
+        int r = select(maxfd + 1, &rfds, NULL, NULL, NULL);
+        if (r < 0) {
+            perror("select");
+            break;
         }
 
-        printf("Client %d disconnected\n", id);
-        remove_client(id);
+        if (FD_ISSET(server, &rfds)) {
+            struct sockaddr_in cli;
+            socklen_t clilen = sizeof(cli);
+            int sock = accept(server, (struct sockaddr*)&cli, &clilen);
+            if (sock >= 0) {
+                int id = add_client(sock);
+                if (id < 0) {
+                    printf("Server full, rejecting client\n");
+                    close(sock);
+                } else {
+                    printf("Client connected with ID %d\n", id);
+                }
+            }
+        }
+
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (!clients[i].connected) continue;
+            int sock = clients[i].sock;
+            if (sock < 0) continue;
+
+            if (FD_ISSET(sock, &rfds)) {
+                msg_header_t h;
+                uint8_t buf[65535];
+
+                int rr = recv_msg(sock, &h, buf, sizeof(buf));
+                if (rr <= 0) {
+                    printf("Client %d lost\n", i);
+                    remove_client(i);
+                    close(sock);
+                } else {
+                    handle_message(sock, i, &h);
+                }
+            }
+        }
     }
 
+    close(server);
     return 0;
-}
-
-void handle_message(int sock, msg_header_t *h, uint8_t *payload) {
-    switch (h->msg_type) {
-
-    case MSG_HELLO: {
-        int id = h->sender_id;
-        client_t *c = get_client(id);
-        if (!c) {
-            printf("HELLO from unknown id %d\n", id);
-            return;
-        }
-
-        // payload: 20 baiti client identifier + 30 baiti player name
-        char client_id[21];
-        char player_name[31];
-
-        memcpy(client_id, payload, 20);
-        client_id[20] = '\0';
-
-        memcpy(player_name, payload + 20, 30);
-        player_name[30] = '\0';
-
-        strncpy(c->name, player_name, 30);
-        c->name[30] = '\0';
-
-        printf("HELLO from client %d: prog=\"%s\" name=\"%s\"\n",
-               id, client_id, c->name);
-
-        // WELCOME: server_id[20], status, count, (pag. count=0)
-        uint8_t buf[64];
-        char server_id[20] = "BomberServer 1.0";
-        memcpy(buf, server_id, 20);
-        buf[20] = 0;   // GAME_LOBBY
-        buf[21] = 0;   // pagaidām nav citu klientu
-
-        send_msg(sock, MSG_WELCOME, (uint8_t)id, (uint8_t)id, buf, 22);
-        break;
-    }
-
-    case MSG_PING:
-        send_msg(sock, MSG_PONG, SERVER_ID, h->sender_id, NULL, 0);
-        break;
-
-    default:
-        printf("Unknown message type %d from %d\n", h->msg_type, h->sender_id);
-        break;
-    }
 }

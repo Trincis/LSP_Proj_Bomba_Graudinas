@@ -1,27 +1,41 @@
-# Kompilē ar make
-# Palaiž ar ./bomberman_server
-# Lai iztīrītu kompilētos failus, izmanto make clean
-
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -O2
-LDFLAGS =
+
 SRC_DIR = src
 BUILD_DIR = build
-TARGET = bomberman_server
 
-SRC = $(wildcard $(SRC_DIR)/*.c)
-OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
+SERVER_TARGET = bomberman_server
+CLIENT_TARGET = client
 
-all: $(TARGET)
+SERVER_SRC = src/server.c src/clients.c src/network.c src/game.c
+CLIENT_SRC = src/client.c src/network.c src/game.c
 
-$(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
+SERVER_OBJ = $(BUILD_DIR)/server.o $(BUILD_DIR)/clients.o $(BUILD_DIR)/network.o $(BUILD_DIR)/game_server.o
+CLIENT_OBJ = $(BUILD_DIR)/client.o $(BUILD_DIR)/network.o $(BUILD_DIR)/game_client.o
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+all: $(SERVER_TARGET) $(CLIENT_TARGET)
+
+# Server build: game.c compiled with -DSERVER_BUILD
+$(BUILD_DIR)/game_server.o: src/game.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DSERVER_BUILD -c $< -o $@
+
+# Client build: game.c compiled WITHOUT -DSERVER_BUILD
+$(BUILD_DIR)/game_client.o: src/game.c
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/%.o: src/%.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(SERVER_TARGET): $(SERVER_OBJ)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(CLIENT_TARGET): $(CLIENT_OBJ)
+	$(CC) $(CFLAGS) $^ -o $@ -lncurses
+
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(SERVER_TARGET) $(CLIENT_TARGET)
 
 .PHONY: all clean
