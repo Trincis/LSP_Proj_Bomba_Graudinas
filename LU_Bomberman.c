@@ -50,21 +50,56 @@ int main(){
 
     ///ekrāns
     WINDOW *win = newwin(config.row+2, config.col*2+1, 1, 0);
-
     if(win == NULL){
         endwin();
         fprintf(stderr, "Failed to create window\n");
         return 1;
     }
 
-
+    keypad(win, true);
 
     ///kartes renderēšana
     map_render(win, &config);
     players_render(win, speletaji, MAX_PLAYERS);
 
     ///sagaidīt pogas spiedienu
-    getch();
+    int ch;
+    while((ch = wgetch(win))!='q'){
+        switch(ch){
+            case KEY_UP:
+            case 'w':{
+                ///MSG_MOVE_ATTEMPT ziņa augšup serverim
+                if(speletaji[1].y > 0) speletaji[1].y--;
+                break;
+            }
+            case KEY_DOWN:
+            case 's':{
+                ///MSG_MOVE_ATTEMPT ziņa lejup serverim
+                if(speletaji[1].y < config.row-1) speletaji[1].y++;
+                break;
+            }
+            case KEY_LEFT:
+            case 'a':{
+                ///MSG_MOVE_ATTEMPT ziņa pa kreisi serverim
+                if(speletaji[1].x > 0) speletaji[1].x--;
+                break;
+            }
+            case KEY_RIGHT:
+            case 'd':{
+                ///MSG_MOVE_ATTEMPT ziņa pa labi serverim
+                if(speletaji[1].x < config.col-1) speletaji[1].x++;
+                break;
+            }
+            case ' ':{
+                ///MSG_BOMB_ATTEMPT ziņa bumbot serverim
+                break;
+            }
+        }
+
+    map_render(win, &config);
+    players_render(win, speletaji, MAX_PLAYERS+1);
+
+    }
 
     ///spēles kods
 
