@@ -3,7 +3,11 @@ LU_Bomberman.c
 
 Programma ir spēle balstīta uz retro spēli Bomberman
 
-Spēles laukuma konfigurācija - fails "config"
+kustās ar wasd
+bumbas liek ar space
+no spēles iziet ar q
+
+Spēles laukuma konfigurācija - fails "map.cfg"
 
 Autori: Barbara Terēze Graudiņa, bg24008
         Katrīna Anna Graudiņa, kg21076
@@ -47,6 +51,14 @@ int main(){
         bumbas[i].y = -1;
     }
 
+    BOOM spradzieni[MAX_BOOM];
+    for(int i=0; i<MAX_BOOM; i++){
+        spradzieni[i].aktivs=0;
+        spradzieni[i].x=-1;
+        spradzieni[i].y=-1;
+        spradzieni[i].timer=0;
+    }
+
     initscr();
     cbreak();
     noecho();
@@ -71,6 +83,8 @@ int main(){
     bombs_render(win, bumbas, MAX_BOMBS); 
 
 
+    timeout(100);
+    int tick = 0;
     ///sagaidīt pogas spiedienu
     int ch;
     while((ch = wgetch(win))!='q'){
@@ -127,6 +141,7 @@ int main(){
                         bumbas[i].x = speletaji[1].x;
                         bumbas[i].y = speletaji[1].y;
                         bumbas[i].aktivs = 1;
+                        bumbas[i].timer = config.fuse_time*10;
                         break;
                     }
                 }
@@ -136,9 +151,29 @@ int main(){
             }
         }
 
+        tick++;
+        for(int i=0; i<MAX_BOMBS; i++){
+            if(bumbas[i].aktivs){
+                bumbas[i].timer--;
+                if(bumbas[i].timer<=0){
+                    Spragsti(&config, &bumbas[i], spradzieni, MAX_BOOM);
+                }
+            }
+        }
+
+        for(int i=0; i<MAX_BOOM; i++){
+            if(spradzieni[i].aktivs){
+                spradzieni[i].timer--;
+                if(spradzieni[i].timer<=0){
+                    cfg->tiles[spradzieni[i].y][spradzieni[i].x]=TILE_FLOOR;
+                    spradzieni[i].aktivs=0;
+                }
+            }
+        }
+
     map_render(win, &config);
-    bombs_render(win, bumbas, MAX_BOMBS);
     players_render(win, speletaji, MAX_PLAYERS+1);
+    bombs_render(win, bumbas, MAX_BOMBS);
 
     }
 

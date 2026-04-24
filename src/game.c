@@ -135,3 +135,59 @@ void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
     }
     wrefresh(w);
 }
+
+void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
+    int virz[4][2]={{0,-1}, {0,1}, {-1,0},{1,0}};
+
+    for(int i = 0; i<max_exp; i++){
+        if(!spradzieni[i].aktivs){
+            spradzieni[i].x=bumba->x;
+            spradzieni[i].y=bumba->y;
+            spradzieni[i].aktivs=1;
+            spradzieni[i].timer=5;
+            cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+            break;
+        }
+    }
+
+    for(int d=0; d<4; d++){
+        for(int r=1; r<=cfg->exp_distance; r++){
+            int nx = bumba->x+virz[d][0]*r;
+            int ny = bumba->y+virz[d][1]*r;
+
+            if(nx<0||nx>=cfg->col||ny<0||ny>=cfg->row){///paliek ekrāna robežās
+                break;
+            }
+            if(cfg->tiles[ny][nx]==TILE_WALL){///ja cieta siena
+                break;
+            }
+
+            if(cfg->tiles[ny][nx]==TILE_BLOCK){
+                cfg->tiles[ny][nx] = TILE_FLOOR;
+
+                for(int i=0; i<max_exp; i++){
+                    if(!spradzieni[i].aktivs){
+                        spradzieni[i].x=nx;
+                        spradzieni[i].y=ny;
+                        spradzieni[i].aktivs=1;
+                        spradzieni[i].timer=5;
+                        cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+                        break;
+                    }
+                }
+                break;
+            }
+            for(int i=0; i<max_exp; i++){
+                if(!spradzieni[i].aktivs){
+                    spradzieni[i].x=nx;
+                    spradzieni[i].y=ny;
+                    spradzieni[i].aktivs=1;
+                    spradzieni[i].timer=5;
+                    cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+                    break;
+                }
+            }
+        }
+    }
+    bumba->aktivs = 0;
+}
