@@ -67,9 +67,8 @@ int main(){
 
     ///kartes renderēšana
     map_render(win, &config);
-    bombs_render(win, bumbas, MAX_BOMBS);
     players_render(win, speletaji, MAX_PLAYERS);
-    
+    bombs_render(win, bumbas, MAX_BOMBS); 
 
 
     ///sagaidīt pogas spiedienu
