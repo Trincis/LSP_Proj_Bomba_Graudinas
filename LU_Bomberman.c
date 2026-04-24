@@ -69,25 +69,45 @@ int main(){
             case KEY_UP:
             case 'w':{
                 ///MSG_MOVE_ATTEMPT ziņa augšup serverim
-                if(speletaji[1].y > 0) speletaji[1].y--;
+
+                ///"Sobrīd lokāļas darbības"
+                int ny = speletaji[1].y-1;
+                if(ny>=0&&config.tiles[ny][speletaji[1].x]==TILE_FLOOR){
+                    speletaji[1].y = ny;
+                }
+                
                 break;
             }
             case KEY_DOWN:
             case 's':{
                 ///MSG_MOVE_ATTEMPT ziņa lejup serverim
-                if(speletaji[1].y < config.row-1) speletaji[1].y++;
+                 ///"Sobrīd lokāļas darbības"
+                int ny = speletaji[1].y+1;
+                if(ny<config.row&&config.tiles[ny][speletaji[1].x]==TILE_FLOOR){
+                    speletaji[1].y = ny;
+                }
+                
                 break;
             }
             case KEY_LEFT:
             case 'a':{
                 ///MSG_MOVE_ATTEMPT ziņa pa kreisi serverim
-                if(speletaji[1].x > 0) speletaji[1].x--;
+                 ///"Sobrīd lokāļas darbības"
+                int nx = speletaji[1].x-1;
+                if(nx>=0&&config.tiles[speletaji[1].y][nx]==TILE_FLOOR){
+                    speletaji[1].x = nx;
+                }
+                
                 break;
             }
             case KEY_RIGHT:
             case 'd':{
                 ///MSG_MOVE_ATTEMPT ziņa pa labi serverim
-                if(speletaji[1].x < config.col-1) speletaji[1].x++;
+                int nx = speletaji[1].x+1;
+                if(nx<config.col&&config.tiles[speletaji[1].y][nx]==TILE_FLOOR){
+                    speletaji[1].x = nx;
+                }
+                
                 break;
             }
             case ' ':{
