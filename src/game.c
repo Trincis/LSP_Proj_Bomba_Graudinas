@@ -126,3 +126,12 @@ void players_render(WINDOW *w, const Player *speletaji, int sk){
     }
     wrefresh(w);
 }
+
+void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
+    for(int i=0; i<sk; i++){
+        if(bumbas[i].aktivs){
+            mvwaddch(w, bumbas[i].y,bumbas[i].x*2, 'B');
+        }
+    }
+    wrefresh(w);
+}

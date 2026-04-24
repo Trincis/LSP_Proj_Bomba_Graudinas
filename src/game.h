@@ -5,6 +5,7 @@
 
 #define MAX_MAP_SIZE 255
 #define MAX_PLAYERS 8
+#define MAX_BOMBS 16
 
 typedef enum{
     TILE_FLOOR = '.',
@@ -39,8 +40,15 @@ typedef struct{
     int dzivs;
 } Player;
 
+typedef struct{
+    int x;
+    int y;
+    int aktivs;
+} Bomb;
+
 int game_config_load(GameConfig *config, const char *filename);
 void map_render(WINDOW *win, const GameConfig *cfg);
 void players_render(WINDOW *w, const Player *speletaji, int sk);
+void bombs_render(WINDOW *w, const Bomb *bumbas, int sk);
 
 #endif

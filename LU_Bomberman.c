@@ -31,13 +31,20 @@ int main(){
         return 1;
     }
 
-    Player speletaji[MAX_PLAYERS+1];
+    Player speletaji[MAX_PLAYERS];
 
     for(int i=0; i<=MAX_PLAYERS; i++){
         speletaji[i].id = i;
         speletaji[i].x = config.player_spawn_x[i];
         speletaji[i].y = config.player_spawn_y[i];
         speletaji[i].dzivs = (config.player_spawn_x[i]!=-1); 
+    }
+    Bomb bumbas[MAX_BOMBS];
+
+    for(int i=0; i<MAX_BOMBS; i++){
+        bumbas[i].aktivs = 0;
+        bumbas[i].x = -1;
+        bumbas[i].y = -1;
     }
 
     initscr();
@@ -61,6 +68,8 @@ int main(){
     ///kartes renderēšana
     map_render(win, &config);
     players_render(win, speletaji, MAX_PLAYERS);
+    bombs_render(win, bumbas, MAX_BOMBS);
+
 
     ///sagaidīt pogas spiedienu
     int ch;
@@ -112,12 +121,24 @@ int main(){
             }
             case ' ':{
                 ///MSG_BOMB_ATTEMPT ziņa bumbot serverim
+
+                for(int i=0; i<MAX_BOMBS; i++){
+                    if(!bumbas[i].aktivs){
+                        bumbas[i].x = speletaji[1].x;
+                        bumbas[i].y = speletaji[1].y;
+                        bumbas[i].aktivs = 1;
+                        break;
+                    }
+                }
+
+
                 break;
             }
         }
 
     map_render(win, &config);
     players_render(win, speletaji, MAX_PLAYERS+1);
+    bombs_render(win, bumbas, MAX_BOMBS);
 
     }
 
