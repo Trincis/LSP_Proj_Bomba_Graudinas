@@ -11,187 +11,133 @@
 #include "game.h"
 
 #define PORT 5000
-
 GameConfig g_cfg;
+// Izveidojam atsevišķu masīvu, kur glabāt aktuālās spēlētāju pozīcijas
+int p_x[MAX_PLAYERS], p_y[MAX_PLAYERS];
 
-void debug_print_map() {
-    printf("=== DEBUG: Loaded map (%d x %d) ===\n", g_cfg.row, g_cfg.col);
-    for (int y = 0; y < g_cfg.row; y++) {
-        for (int x = 0; x < g_cfg.col; x++) {
-            char ch;
-            switch (g_cfg.tiles[y][x]) {
-                case TILE_WALL:   ch = 'H'; break;
-                case TILE_BLOCK:  ch = 'S'; break;
-                case TILE_BOMB:   ch = 'B'; break;
-                case TILE_FASTER: ch = 'A'; break;
-                case TILE_BIGGER: ch = 'R'; break;
-                case TILE_LONGER: ch = 'T'; break;
-                case TILE_BOOM:   ch = '*'; break;
-                default:          ch = '.'; break;
-            }
-            printf("%c", ch);
-        }
-        printf("\n");
-    }
-    printf("===================================\n");
-}
-
-void send_map(int sock) {
-    printf("DEBUG: Sending map to client...\n");
-
+void send_map_to_all() {
     uint8_t buf[65535];
     int pos = 0;
-
-    buf[pos++] = g_cfg.row;
-    buf[pos++] = g_cfg.col;
+    buf[pos++] = (uint8_t)g_cfg.row;
+    buf[pos++] = (uint8_t)g_cfg.col;
 
     for (int y = 0; y < g_cfg.row; y++) {
         for (int x = 0; x < g_cfg.col; x++) {
-            char ch;
-            switch (g_cfg.tiles[y][x]) {
-                case TILE_WALL:   ch = 'H'; break;
-                case TILE_BLOCK:  ch = 'S'; break;
-                case TILE_BOMB:   ch = 'B'; break;
-                case TILE_FASTER: ch = 'A'; break;
-                case TILE_BIGGER: ch = 'R'; break;
-                case TILE_LONGER: ch = 'T'; break;
-                case TILE_BOOM:   ch = '*'; break;
-                default:          ch = '.'; break;
-            }
-            buf[pos++] = (uint8_t)ch;
+            buf[pos++] = (uint8_t)g_cfg.tiles[y][x];
+        }
+    }
+    
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (clients[i].connected) {
+            buf[pos++] = (uint8_t)p_x[i];
+            buf[pos++] = (uint8_t)p_y[i];
+        } else {
+            buf[pos++] = 255; buf[pos++] = 255;
         }
     }
 
-    printf("DEBUG: Map payload size = %d bytes\n", pos);
-    send_msg(sock, MSG_SET_STATUS, SERVER_ID, 0, buf, pos);
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (clients[i].connected) {
+            send_msg(clients[i].sock, MSG_SET_STATUS, SERVER_ID, i, buf, pos);
+        }
+    }
 }
 
-void handle_message(int sock, int id, msg_header_t *h) {
+void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
     switch (h->msg_type) {
-
         case MSG_HELLO:
-            printf("Client %d says HELLO\n", id);
-
-            printf("DEBUG: Sending WELCOME...\n");
+            // Atrodam brīvu spawn punktu no map.cfg ielādētajiem
+            if (p_x[id] == -1) {
+                for (int s = 0; s < 8; s++) { // Pārbaudām spawn punktus 0-7
+                    if (g_cfg.player_spawn_x[s] != -1) {
+                        p_x[id] = g_cfg.player_spawn_x[s];
+                        p_y[id] = g_cfg.player_spawn_y[s];
+                        // Svarīgi: NEIZDZĒŠAM spawn punktu no g_cfg, lai serveris zinātu, kur tu esi
+                        break;
+                    }
+                }
+            }
+            printf("DEBUG: Player %d connected at %d,%d\n", id, p_x[id], p_y[id]);
             send_msg(sock, MSG_WELCOME, SERVER_ID, id, NULL, 0);
-
-            printf("DEBUG: Sending MAP...\n");
-            send_map(sock);
+            send_map_to_all();
             break;
 
-        case MSG_PING:
-            send_msg(sock, MSG_PONG, SERVER_ID, id, NULL, 0);
-            break;
+        case MSG_MOVE_ATTEMPT: {
+            if (p_x[id] == -1) break; // Ja spēlētājam nav pozīcijas, nevar kustēties
+            
+            uint8_t dir = payload[0];
+            int nx = p_x[id];
+            int ny = p_y[id];
 
-        case MSG_LEAVE:
-        case MSG_DISCONNECT:
-            printf("Client %d disconnected\n", id);
-            remove_client(id);
-            close(sock);
-            break;
+            if (dir == 1) ny--;      // Up
+            else if (dir == 2) ny++; // Down
+            else if (dir == 3) nx--; // Left
+            else if (dir == 4) nx++; // Right
 
-        default:
-            printf("Unknown msg %d from %d\n", h->msg_type, id);
+            if (nx >= 0 && nx < g_cfg.col && ny >= 0 && ny < g_cfg.row) {
+                TileType target = g_cfg.tiles[ny][nx];
+                // Atļaujam iet pa grīdu vai bonusiem
+                if (target == TILE_FLOOR || (target >= TILE_FASTER && target <= TILE_LONGER)) {
+                    p_x[id] = nx;
+                    p_y[id] = ny;
+                    send_map_to_all();
+                }
+            }
+            break;
+        }
+
+        case MSG_BOMB_ATTEMPT:
+            if (g_cfg.tiles[p_y[id]][p_x[id]] == TILE_FLOOR) {
+                g_cfg.tiles[p_y[id]][p_x[id]] = TILE_BOMB;
+                send_map_to_all();
+            }
             break;
     }
 }
 
 int main() {
-    printf("Loading map...\n");
-    if (game_config_load(&g_cfg, "map.cfg") != 0) {
-        printf("Failed to load map!\n");
-        return 1;
-    }
-
-    printf("DEBUG: MAP AFTER LOAD:\n");
-    debug_print_map();
-
-    // DEBUG: IZDRUKĀ KARTI, KĀDU SERVERIS TO REDZ
-    debug_print_map();
-
+    if (game_config_load(&g_cfg, "map.cfg") != 0) return 1;
     init_clients();
+    for(int i=0; i<MAX_PLAYERS; i++) p_x[i] = p_y[i] = -1;
 
-    int server = socket(AF_INET, SOCK_STREAM, 0);
-    if (server < 0) {
-        perror("socket");
-        return 1;
-    }
-
+    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
-    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
+    bind(server_sock, (struct sockaddr*)&addr, sizeof(addr));
+    listen(server_sock, 8);
 
-    if (bind(server, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind");
-        return 1;
-    }
-
-    if (listen(server, 8) < 0) {
-        perror("listen");
-        return 1;
-    }
-
-    printf("Server running on port %d\n", PORT);
+    printf("Server running on port %d...\n", PORT);
 
     while (1) {
-        fd_set rfds;
-        FD_ZERO(&rfds);
-        FD_SET(server, &rfds);
-        int maxfd = server;
-
+        fd_set rfds; FD_ZERO(&rfds); FD_SET(server_sock, &rfds);
+        int maxfd = server_sock;
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            if (clients[i].connected && clients[i].sock >= 0) {
+            if (clients[i].connected) {
                 FD_SET(clients[i].sock, &rfds);
                 if (clients[i].sock > maxfd) maxfd = clients[i].sock;
             }
         }
-
-        int r = select(maxfd + 1, &rfds, NULL, NULL, NULL);
-        if (r < 0) {
-            perror("select");
-            break;
+        select(maxfd + 1, &rfds, NULL, NULL, NULL);
+        if (FD_ISSET(server_sock, &rfds)) {
+            int new_sock = accept(server_sock, NULL, NULL);
+            add_client(new_sock);
         }
-
-        if (FD_ISSET(server, &rfds)) {
-            struct sockaddr_in cli;
-            socklen_t clilen = sizeof(cli);
-            int sock = accept(server, (struct sockaddr*)&cli, &clilen);
-            if (sock >= 0) {
-                int id = add_client(sock);
-                if (id < 0) {
-                    printf("Server full, rejecting client\n");
-                    close(sock);
-                } else {
-                    printf("Client connected with ID %d\n", id);
-                }
-            }
-        }
-
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            if (!clients[i].connected) continue;
-            int sock = clients[i].sock;
-            if (sock < 0) continue;
-
-            if (FD_ISSET(sock, &rfds)) {
-                msg_header_t h;
-                uint8_t buf[65535];
-
-                int rr = recv_msg(sock, &h, buf, sizeof(buf));
-                if (rr <= 0) {
-                    printf("Client %d lost\n", i);
+            if (clients[i].connected && FD_ISSET(clients[i].sock, &rfds)) {
+                msg_header_t h; uint8_t buf[65535];
+                if (recv_msg(clients[i].sock, &h, buf, sizeof(buf)) <= 0) {
                     remove_client(i);
-                    close(sock);
+                    p_x[i] = p_y[i] = -1;
                 } else {
-                    handle_message(sock, i, &h);
+                    handle_message(clients[i].sock, i, &h, buf);
                 }
             }
         }
     }
-
-    close(server);
     return 0;
 }

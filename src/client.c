@@ -7,102 +7,80 @@
 
 #include "network.h"
 #include "protocol.h"
-#include "game.h"   
+#include "game.h"
 
 int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("socket");
-        return 1;
-    }
-
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(5000);
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("connect");
-        return 1;
-    }
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) return 1;
 
-    printf("Connected to server\n");
-
+    // Sūtam Hello
     send_msg(sock, MSG_HELLO, 0, SERVER_ID, NULL, 0);
-    printf("Sent HELLO\n");
 
+    initscr(); noecho(); cbreak(); keypad(stdscr, TRUE); curs_set(0); timeout(30);
+
+    GameConfig cfg;
     msg_header_t h;
     uint8_t buf[65535];
+    int my_id = -1;
+    WINDOW *w = NULL;
+    int px[MAX_PLAYERS], py[MAX_PLAYERS];
 
-    // Saņemam WELCOME
     while (1) {
-        recv_msg(sock, &h, buf, sizeof(buf));
-        if (h.msg_type == MSG_WELCOME)
-            break;
-    }
+        // Apstrādājam visas ienākošās ziņas no servera
+        while (recv_msg(sock, &h, buf, sizeof(buf)) > 0) {
+            if (h.msg_type == MSG_WELCOME) {
+                my_id = h.target_id;
+            } 
+            else if (h.msg_type == MSG_SET_STATUS) {
+                cfg.row = buf[0]; cfg.col = buf[1];
+                int pos = 2;
+                // Ielādējam karti
+                for (int y = 0; y < cfg.row; y++) {
+                    for (int x = 0; x < cfg.col; x++) {
+                        cfg.tiles[y][x] = (TileType)buf[pos++];
+                    }
+                }
+                // Ielādējam spēlētāju pozīcijas
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    px[i] = (buf[pos] == 255) ? -1 : (int)buf[pos]; pos++;
+                    py[i] = (buf[pos] == 255) ? -1 : (int)buf[pos]; pos++;
+                }
 
-    // Saņemam MAP
-    while (1) {
-        recv_msg(sock, &h, buf, sizeof(buf));
-        if (h.msg_type == MSG_SET_STATUS)
-            break;
-    }
-
-    int rows = buf[0];
-    int cols = buf[1];
-
-    printf("Map received: %d x %d\n", rows, cols);
-
-    // Izveido GameConfig struktūru kartes zīmēšanai
-    GameConfig cfg;
-    cfg.row = rows;
-    cfg.col = cols;
-
-    int pos = 2;
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            char c = buf[pos++];
-
-            switch(c){
-                case 'H': cfg.tiles[y][x] = TILE_WALL;   break;
-                case 'S': cfg.tiles[y][x] = TILE_BLOCK;  break;
-                case 'B': cfg.tiles[y][x] = TILE_BOMB;   break;
-                case 'A': cfg.tiles[y][x] = TILE_FASTER; break;
-                case 'R': cfg.tiles[y][x] = TILE_BIGGER; break;
-                case 'T': cfg.tiles[y][x] = TILE_LONGER; break;
-                case '*': cfg.tiles[y][x] = TILE_BOOM;   break;
-                default:  cfg.tiles[y][x] = TILE_FLOOR;  break;
+                if (!w) w = newwin(cfg.row + 2, cfg.col * 2 + 2, 0, 0);
+                werase(w);
+                // Zīmējam karti
+                for (int y = 0; y < cfg.row; y++) {
+                    for (int x = 0; x < cfg.col; x++) {
+                        mvwaddch(w, y, x * 2, (char)cfg.tiles[y][x]);
+                    }
+                }
+                // Zīmējam spēlētājus
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (px[i] != -1 && py[i] != -1) {
+                        mvwaddch(w, py[i], px[i] * 2, (i == my_id) ? '@' : 'P');
+                    }
+                }
+                wrefresh(w);
             }
         }
-    }
 
-    // Ncurses
-    initscr();
-    noecho();
-    cbreak();
-    keypad(stdscr, TRUE);
-
-    WINDOW *w = newwin(rows, cols*2, 1, 1);
-
-    // Zīmē karti ar game.c funkciju
-    map_render(w, &cfg);
-
-    // Spēlētāja lokālā kustība
-    int px = 1, py = 1;
-    mvwaddch(w, py, px*2, '@');
-    wrefresh(w);
-
-    while (1) {
         int ch = getch();
-        mvwaddch(w, py, px*2, '.');
+        if (ch == 'q') break;
 
-        if (ch == 'w') py--;
-        if (ch == 's') py++;
-        if (ch == 'a') px--;
-        if (ch == 'd') px++;
-
-        mvwaddch(w, py, px*2, '@');
-        wrefresh(w);
+        uint8_t dir = 0;
+        if (ch == 'w' || ch == KEY_UP)    dir = 1;
+        else if (ch == 's' || ch == KEY_DOWN)  dir = 2;
+        else if (ch == 'a' || ch == KEY_LEFT)  dir = 3;
+        else if (ch == 'd' || ch == KEY_RIGHT) dir = 4;
+        
+        if (dir > 0 && my_id != -1) {
+            send_msg(sock, MSG_MOVE_ATTEMPT, (uint8_t)my_id, SERVER_ID, &dir, 1);
+        }
     }
 
     endwin();

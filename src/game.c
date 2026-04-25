@@ -39,7 +39,7 @@ int game_config_load(GameConfig *config, const char *filename){
             return -1;
             }
             
-            if (c >= '1' && c <= '8') {
+            if (c >= '0' && c <= '7') {
                 int id = c - '0';
                 config->player_spawn_x[id] = x;
                 config->player_spawn_y[id] = y;
@@ -132,6 +132,8 @@ void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
 void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
     int virz[4][2]={{0,-1}, {0,1}, {-1,0},{1,0}};
 
+    cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+
     for(int i = 0; i<max_exp; i++){
         if(!spradzieni[i].aktivs){
             spradzieni[i].x=bumba->x;
@@ -176,10 +178,11 @@ void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
                     spradzieni[i].y=ny;
                     spradzieni[i].aktivs=1;
                     spradzieni[i].timer=5;
-                    cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+                    cfg->tiles[ny][nx] = TILE_BOOM;
                     break;
                 }
             }
+            if(cfg->tiles[ny][nx] == TILE_BLOCK) break;
         }
     }
     bumba->aktivs = 0;
