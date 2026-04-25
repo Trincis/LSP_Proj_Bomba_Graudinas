@@ -165,7 +165,7 @@ int main(){
             if(spradzieni[i].aktivs){
                 spradzieni[i].timer--;
                 if(spradzieni[i].timer<=0){
-                    cfg->tiles[spradzieni[i].y][spradzieni[i].x]=TILE_FLOOR;
+                    config.tiles[spradzieni[i].y][spradzieni[i].x]=TILE_FLOOR;
                     spradzieni[i].aktivs=0;
                 }
             }

@@ -4,82 +4,143 @@
 #include <arpa/inet.h>
 #include <ncurses.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/select.h>
 
 #include "network.h"
 #include "protocol.h"
 #include "game.h"
 
 int main() {
+    fprintf(stderr, "[CLIENT] Starting client...\n");
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("[CLIENT] socket");
+        return 1;
+    }
+
+    fprintf(stderr, "[CLIENT] Socket created: %d\n", sock);
+
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(5000);
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) return 1;
+    fprintf(stderr, "[CLIENT] Connecting to server...\n");
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("[CLIENT] connect");
+        return 1;
+    }
 
-    // Sūtam Hello
-    send_msg(sock, MSG_HELLO, 0, SERVER_ID, NULL, 0);
+    fprintf(stderr, "[CLIENT] Connected! Sending HELLO...\n");
 
-    initscr(); noecho(); cbreak(); keypad(stdscr, TRUE); curs_set(0); timeout(30);
+    if (send_msg(sock, MSG_HELLO, 0, SERVER_ID, NULL, 0) < 0) {
+        perror("[CLIENT] send_msg HELLO");
+        return 1;
+    }
+
+    fprintf(stderr, "[CLIENT] HELLO sent.\n");
+
+    // NCURSES INIT
+    initscr();
+    noecho();
+    cbreak();
+    keypad(stdscr, TRUE);
+    timeout(0);   // getch() nebloķē – mēs paši kontrolējam tempu ar select()
 
     GameConfig cfg;
-    msg_header_t h;
-    uint8_t buf[65535];
+    memset(&cfg, 0, sizeof(cfg));
+
     int my_id = -1;
-    WINDOW *w = NULL;
     int px[MAX_PLAYERS], py[MAX_PLAYERS];
+    for (int i = 0; i < MAX_PLAYERS; i++) px[i] = py[i] = -1;
+
+    WINDOW *w = NULL;
 
     while (1) {
-        // Apstrādājam visas ienākošās ziņas no servera
-        while (recv_msg(sock, &h, buf, sizeof(buf)) > 0) {
+        // --- SOCKET READ AR SELECT ---
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(sock, &rfds);
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 50000; // ~50 ms frame
+
+        int sel = select(sock + 1, &rfds, NULL, NULL, &tv);
+        if (sel < 0) {
+            perror("[CLIENT] select");
+            break;
+        }
+
+        if (sel > 0 && FD_ISSET(sock, &rfds)) {
+            msg_header_t h;
+            uint8_t buf[65535];
+
+            int r = recv_msg(sock, &h, buf, sizeof(buf));
+            if (r <= 0) {
+                fprintf(stderr, "[CLIENT] Server closed or recv error (r=%d, errno=%d)\n", r, errno);
+                break;
+            }
+
+            fprintf(stderr, "[CLIENT] Received msg: type=%d sender=%d target=%d len=%d\n",
+                    h.msg_type, h.sender_id, h.target_id, h.payload_len);
+
             if (h.msg_type == MSG_WELCOME) {
+                fprintf(stderr, "[CLIENT] Got WELCOME. My ID = %d\n", h.target_id);
                 my_id = h.target_id;
-            } 
-            else if (h.msg_type == MSG_SET_STATUS) {
-                cfg.row = buf[0]; cfg.col = buf[1];
-                int pos = 2;
-                // Ielādējam karti
-                for (int y = 0; y < cfg.row; y++) {
-                    for (int x = 0; x < cfg.col; x++) {
-                        cfg.tiles[y][x] = (TileType)buf[pos++];
-                    }
-                }
-                // Ielādējam spēlētāju pozīcijas
+            }
+
+            if (h.msg_type == MSG_MAP) {
+                fprintf(stderr, "[CLIENT] Got MAP update.\n");
+
+                int pos = 0;
+                cfg.row = buf[pos++];
+                cfg.col = buf[pos++];
+
+                for (int y = 0; y < cfg.row; y++)
+                    for (int x = 0; x < cfg.col; x++)
+                        cfg.tiles[y][x] = buf[pos++];
+
                 for (int i = 0; i < MAX_PLAYERS; i++) {
-                    px[i] = (buf[pos] == 255) ? -1 : (int)buf[pos]; pos++;
-                    py[i] = (buf[pos] == 255) ? -1 : (int)buf[pos]; pos++;
+                    px[i] = buf[pos++];
+                    py[i] = buf[pos++];
                 }
 
-                if (!w) w = newwin(cfg.row + 2, cfg.col * 2 + 2, 0, 0);
+                if (!w)
+                    w = newwin(cfg.row + 2, cfg.col * 2 + 2, 0, 0);
+
                 werase(w);
-                // Zīmējam karti
-                for (int y = 0; y < cfg.row; y++) {
-                    for (int x = 0; x < cfg.col; x++) {
-                        mvwaddch(w, y, x * 2, (char)cfg.tiles[y][x]);
-                    }
-                }
-                // Zīmējam spēlētājus
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (px[i] != -1 && py[i] != -1) {
-                        mvwaddch(w, py[i], px[i] * 2, (i == my_id) ? '@' : 'P');
-                    }
-                }
+
+                for (int y = 0; y < cfg.row; y++)
+                    for (int x = 0; x < cfg.col; x++)
+                        mvwaddch(w, y, x * 2, cfg.tiles[y][x]);
+
+                for (int i = 0; i < MAX_PLAYERS; i++)
+                    if (px[i] != 255 && py[i] != 255)
+                        mvwaddch(w, py[i], px[i] * 2, (i == my_id ? '@' : 'P'));
+
                 wrefresh(w);
             }
         }
 
+        // --- INPUT (VIENMĒR KATRĀ CIKLĀ) ---
         int ch = getch();
         if (ch == 'q') break;
 
         uint8_t dir = 0;
-        if (ch == 'w' || ch == KEY_UP)    dir = 1;
-        else if (ch == 's' || ch == KEY_DOWN)  dir = 2;
-        else if (ch == 'a' || ch == KEY_LEFT)  dir = 3;
-        else if (ch == 'd' || ch == KEY_RIGHT) dir = 4;
-        
-        if (dir > 0 && my_id != -1) {
-            send_msg(sock, MSG_MOVE_ATTEMPT, (uint8_t)my_id, SERVER_ID, &dir, 1);
+        if (ch == 'w') dir = 'U';
+        if (ch == 's') dir = 'D';
+        if (ch == 'a') dir = 'L';
+        if (ch == 'd') dir = 'R';
+
+        if (dir != 0 && my_id != -1) {
+            fprintf(stderr, "[CLIENT] Sending MOVE_ATTEMPT %c\n", dir);
+            if (send_msg(sock, MSG_MOVE_ATTEMPT, my_id, SERVER_ID, &dir, 1) < 0) {
+                perror("[CLIENT] send_msg MOVE_ATTEMPT");
+                break;
+            }
         }
     }
 
