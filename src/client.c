@@ -135,6 +135,13 @@ int main() {
         if (ch == 'a') dir = 'L';
         if (ch == 'd') dir = 'R';
 
+        if (ch == ' ') {
+            fprintf(stderr, "[CLIENT] Sending BOMB_ATTEMPT\n");
+            uint8_t dummy = 0;
+            send_msg(sock, MSG_BOMB_ATTEMPT, my_id, SERVER_ID, &dummy, 1);
+        }
+
+
         if (dir != 0 && my_id != -1) {
             fprintf(stderr, "[CLIENT] Sending MOVE_ATTEMPT %c\n", dir);
             if (send_msg(sock, MSG_MOVE_ATTEMPT, my_id, SERVER_ID, &dir, 1) < 0) {

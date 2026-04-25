@@ -82,6 +82,20 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
             }
         }
     }
+
+    if (h->msg_type == MSG_BOMB_ATTEMPT) {
+        printf("[SERVER] BOMB_ATTEMPT from %d\n", id);
+
+        int bx = p_x[id];
+        int by = p_y[id];
+
+        // Ieliekam bumbu kartē
+        g_cfg.tiles[by][bx] = 'B';   // vai kādu citu simbolu
+
+        send_map_to_all();
+        return;
+    }
+
 }
 
 int main() {

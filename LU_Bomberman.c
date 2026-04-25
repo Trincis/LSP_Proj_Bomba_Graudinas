@@ -1,3 +1,10 @@
+/*
+klient =  ./client 2> client.log
+serveris =   ./bomberman_server
+*/
+
+
+
 /**
 LU_Bomberman.c
 
