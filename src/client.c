@@ -45,7 +45,7 @@ int main(int argc, char *argv[]){
     int got_welcome = 0;
     int got_map = 0;
 
-    // 🔥 OBLIGĀTA SINHRONIZĀCIJA PIRMS SPĒLES
+    //sinhronizācija pirms spēles sākuma - sagaidām gan WELCOME, gan MAP
     while (!got_welcome || !got_map) {
         msg_header_t h;
         uint8_t buff[65536];
@@ -79,7 +79,6 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // 🔥 Tikai tagad drīkst sākt zīmēt
     initscr();
     cbreak();
     noecho();
@@ -94,7 +93,7 @@ int main(int argc, char *argv[]){
 
     while (1) {
 
-        // 1) 🔥 VISPIRMS APSTRĀDĀ VISAS SERVERA ZIŅAS
+        // sākumā apstrādājam servera ziņas, lai izvairītos no sinhronizācijas problēmām
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sock, &fds);
@@ -129,7 +128,7 @@ int main(int argc, char *argv[]){
             }
         }
 
-        // 2) 🔥 TAGAD NOLASI TAUSTIŅU
+        //taustiņus lasa tikai pēc servera ziņu apstrādes, lai izvairītos no sinhronizācijas problēmām
         int ch = wgetch(win);
 
         if (ch == 'q') break;
@@ -139,7 +138,7 @@ int main(int argc, char *argv[]){
         if (ch == 'a') { uint8_t v='L'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
         if (ch == 'd') { uint8_t v='R'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
 
-        // 3) 🔥 UN TIKAI TAGAD ZĪMĒ KARTI
+        //zīmējam karti
         werase(win);
 
         for (int y = 0; y < config.row; y++) {

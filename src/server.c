@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/ioctl.h>
@@ -16,11 +17,13 @@
 GameConfig g_cfg;
 int p_x[MAX_PLAYERS], p_y[MAX_PLAYERS];
 
+Bomb bombs[MAX_BOMBS];
+BOOM spradzieni[MAX_BOOM];
+
 void assign_spawn(int id) {
     if (g_cfg.player_spawn_x[id] != -1) {
         p_x[id] = g_cfg.player_spawn_x[id];
         p_y[id] = g_cfg.player_spawn_y[id];
-        printf("[SERVER] Spawn player %d at %d,%d\n", id, p_x[id], p_y[id]);
         return;
     }
 
@@ -28,14 +31,12 @@ void assign_spawn(int id) {
         if (g_cfg.player_spawn_x[i] != -1) {
             p_x[id] = g_cfg.player_spawn_x[i];
             p_y[id] = g_cfg.player_spawn_y[i];
-            printf("[SERVER] Spawn player %d at %d,%d (fallback)\n", id, p_x[id], p_y[id]);
             return;
         }
     }
 
     p_x[id] = 1;
     p_y[id] = 1;
-    printf("[SERVER] Spawn player %d at default 1,1\n", id);
 }
 
 void send_map_to_all() {
@@ -59,8 +60,24 @@ void send_map_to_all() {
             send_msg(clients[i].sock, MSG_MAP, SERVER_ID, i, buf, pos);
 }
 
+void place_bomb(int id, int x, int y) {
+    (void)id;
+
+    for (int i = 0; i < MAX_BOMBS; i++) {
+        if (!bombs[i].aktivs) {
+            bombs[i].aktivs = 1;
+            bombs[i].x = x;
+            bombs[i].y = y;
+            bombs[i].timer = g_cfg.fuse_time;
+
+            g_cfg.tiles[y][x] = TILE_BOMB;
+            send_map_to_all();
+            return;
+        }
+    }
+}
+
 void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
-    printf("[SERVER DEBUG] msg=%d from player=%d\n", h->msg_type, id);
 
     if (h->msg_type == MSG_HELLO) {
         assign_spawn(id);
@@ -70,7 +87,6 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
     }
 
     if (h->msg_type == MSG_MOVE_ATTEMPT) {
-        printf("[SERVER DEBUG] MOVE_ATTEMPT dir=%c\n", payload[0]);
         uint8_t dir = payload[0];
 
         int nx = p_x[id];
@@ -104,16 +120,14 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
         int bx = p_x[id];
         int by = p_y[id];
 
-        if (bx >= 0 && bx < g_cfg.col && by >= 0 && by < g_cfg.row) {
-            g_cfg.tiles[by][bx] = TILE_BOMB;
-            send_map_to_all();
+        if (g_cfg.tiles[by][bx] == TILE_FLOOR) {
+            place_bomb(id, bx, by);
         }
         return;
     }
 }
 
 int main() {
-    printf("[SERVER] Loading map...\n");
 
     if (game_config_load(&g_cfg, "map.cfg") != 0) {
         printf("[SERVER] Failed to load map.cfg\n");
@@ -124,12 +138,18 @@ int main() {
     for (int i = 0; i < MAX_PLAYERS; i++)
         p_x[i] = p_y[i] = -1;
 
-    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock < 0) {
-        perror("socket");
-        return 1;
+    for (int i = 0; i < MAX_BOMBS; i++) {
+        bombs[i].aktivs = 0;
+        bombs[i].timer = 0;
     }
-    printf("[SERVER] Socket created: %d\n", server_sock);
+
+    for (int i = 0; i < MAX_BOOM; i++) {
+        spradzieni[i].aktivs = 0;
+        spradzieni[i].timer = 0;
+    }
+
+    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_sock < 0) return 1;
 
     int opt = 1;
     setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -139,18 +159,48 @@ int main() {
     addr.sin_port = htons(PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(server_sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind");
-        return 1;
-    }
-    if (listen(server_sock, 8) < 0) {
-        perror("listen");
-        return 1;
-    }
+    if (bind(server_sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) return 1;
+    if (listen(server_sock, 8) < 0) return 1;
 
-    printf("[SERVER] Running on port %d...\n", PORT);
+    uint64_t last_tick = clock();
 
     while (1) {
+
+        uint64_t now = clock();
+        if (now - last_tick > (CLOCKS_PER_SEC / 120)) {
+            last_tick = now;
+            printf("TICK\n");
+
+
+            for (int i = 0; i < MAX_BOMBS; i++) {
+                if (bombs[i].aktivs) {
+                    bombs[i].timer--;
+                    if (bombs[i].timer <= 0) {
+                        printf("SPRAAGSTI: %d %d\n", bombs[i].x, bombs[i].y);
+                        Spragsti(&g_cfg, &bombs[i], spradzieni, MAX_BOOM);
+                        send_map_to_all();
+                    }
+                }
+            }
+
+            for (int i = 0; i < MAX_BOOM; i++) {
+                if (spradzieni[i].aktivs) {
+                    spradzieni[i].timer--;
+                    if (spradzieni[i].timer <= 0) {
+                        spradzieni[i].aktivs = 0;
+
+                        int x = spradzieni[i].x;
+                        int y = spradzieni[i].y;
+
+                        if (g_cfg.tiles[y][x] == TILE_BOOM)
+                            g_cfg.tiles[y][x] = TILE_FLOOR;
+                    }
+                }
+            }
+
+            send_map_to_all();
+        }
+
         fd_set rfds;
         FD_ZERO(&rfds);
         FD_SET(server_sock, &rfds);
@@ -163,16 +213,17 @@ int main() {
             }
         }
 
-        if (select(maxfd + 1, &rfds, NULL, NULL, NULL) < 0) {
-            perror("select");
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 50000; // 50ms timeout
+
+        if (select(maxfd + 1, &rfds, NULL, NULL, &tv) < 0)
             break;
-        }
 
         if (FD_ISSET(server_sock, &rfds)) {
             int new_sock = accept(server_sock, NULL, NULL);
             if (new_sock >= 0) {
-                int id = add_client(new_sock);
-                printf("[SERVER] New client id=%d sock=%d\n", id, new_sock);
+                add_client(new_sock);
             }
         }
 
@@ -185,7 +236,6 @@ int main() {
 
                     int r = recv_msg(clients[i].sock, &h, buf, sizeof(buf));
                     if (r <= 0) {
-                        printf("[SERVER] Client %d disconnected\n", i);
                         remove_client(i);
                         p_x[i] = p_y[i] = -1;
                         break;

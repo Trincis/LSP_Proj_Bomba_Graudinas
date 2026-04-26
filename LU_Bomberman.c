@@ -43,7 +43,6 @@ T - bumbas atskaites laika palielinasana
 **/
 
 int main(int argc, char *argv[]){
-    /// servera saslēgšana
     char serverIP[64];
     if(argc>1) strcpy(serverIP, argv[1]);
     else strcpy(serverIP, "127.0.0.1");
@@ -67,7 +66,6 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    /// Sūtam HELLO serverim
     send_msg(sock, MSG_HELLO, 0, SERVER_ID, NULL, 0);
 
     GameConfig config;
@@ -76,7 +74,6 @@ int main(int argc, char *argv[]){
     int id = -1;
     int px[MAX_PLAYERS], py[MAX_PLAYERS];
 
-    /// sagaidām gan WELCOME, gan MAP
     int got_welcome = 0;
     int got_map = 0;
 
@@ -85,7 +82,7 @@ int main(int argc, char *argv[]){
         uint8_t buff[65536];
 
         if(recv_msg(sock, &h, buff, sizeof(buff)) <= 0){
-            fprintf(stderr, "Savienojums pārtrūka sākotnējās fāzes laikā\n");
+            fprintf(stderr, "Savienojums pārtrūka\n");
             close(sock);
             return 1;
         }
@@ -93,7 +90,6 @@ int main(int argc, char *argv[]){
         if(h.msg_type == MSG_WELCOME){
             id = h.target_id;
             got_welcome = 1;
-            fprintf(stderr, "Pieslēdzies kā spēlētājs nr. %d\n", id);
         }
 
         if(h.msg_type == MSG_MAP){
@@ -101,12 +97,10 @@ int main(int argc, char *argv[]){
             config.row = buff[pos++];
             config.col = buff[pos++];
 
-            /// kartes ielāde
             for(int y=0; y<config.row; y++)
                 for(int x=0; x<config.col; x++)
                     config.tiles[y][x] = buff[pos++];
 
-            /// spēlētāju pozīcijas
             for(int i=0; i<MAX_PLAYERS; i++){
                 px[i] = buff[pos++];
                 py[i] = buff[pos++];
@@ -116,7 +110,6 @@ int main(int argc, char *argv[]){
         }
     }
 
-    /// NCURSES inicializācija
     initscr();
     cbreak();
     noecho();
@@ -125,48 +118,32 @@ int main(int argc, char *argv[]){
     clear();
     refresh();
 
-    /// spēles logs
     WINDOW *win = newwin(config.row+2, config.col*2+1, 1, 0);
     keypad(win, TRUE);
-    nodelay(win, FALSE);   // blokējošs ievads ar timeout
-    wtimeout(win, 50);     // 50 ms
+    nodelay(win, FALSE);
+    wtimeout(win, 50);
 
-    /// spēles cikls
-    while(1){
+    while (1) {
 
-        /// taustiņi
+        // 1) NOLASI TAUSTIŅU
         int ch = wgetch(win);
 
-        if(ch == 'q') goto cleanup;
+        if(ch == 'q') break;
 
-        if(ch == 'w' || ch == KEY_UP){
-            uint8_t v='U';
-            send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1);
-        } else if(ch == 's' || ch == KEY_DOWN){
-            uint8_t v='D';
-            send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1);
-        } else if(ch == 'a' || ch == KEY_LEFT){
-            uint8_t v='L';
-            send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1);
-        } else if(ch == 'd' || ch == KEY_RIGHT){
-            uint8_t v='R';
-            send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1);
-        } else if(ch == ' '){
-            uint8_t v=0;
-            send_msg(sock, MSG_BOMB_ATTEMPT, id, SERVER_ID, &v, 1);
-        }
+        if(ch == 'w'){ uint8_t v='U'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if(ch == 's'){ uint8_t v='D'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if(ch == 'a'){ uint8_t v='L'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if(ch == 'd'){ uint8_t v='R'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if(ch == ' '){ uint8_t v=0;  send_msg(sock, MSG_BOMB_ATTEMPT, id, SERVER_ID, &v, 1); }
 
-        /// sagaidam servera ziņas (ja tādas ir)
+        // 2) GAIDĀM MAP NO SERVERA
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sock, &fds);
-        struct timeval tv = {0, 100000}; // 100 ms max gaidīšana
+
+        struct timeval tv = {0, 200000}; // 200ms timeout
 
         int sel = select(sock+1, &fds, NULL, NULL, &tv);
-        if(sel < 0){
-            fprintf(stderr, "select kļūda\n");
-            break;
-        }
 
         if(sel > 0 && FD_ISSET(sock, &fds)){
             while(1){
@@ -174,22 +151,17 @@ int main(int argc, char *argv[]){
                 uint8_t sbuff[65536];
 
                 int r = recv_msg(sock, &h, sbuff, sizeof(sbuff));
-                if(r <= 0){
-                    fprintf(stderr, "Savienojums pārtrūka spēles laikā\n");
-                    goto cleanup;
-                }
+                if(r <= 0) break;
 
                 if(h.msg_type == MSG_MAP){
                     int pos = 0;
                     config.row = sbuff[pos++];
                     config.col = sbuff[pos++];
 
-                    /// karte
                     for(int y=0; y<config.row; y++)
                         for(int x=0; x<config.col; x++)
                             config.tiles[y][x] = sbuff[pos++];
 
-                    /// spēlētāji
                     for(int i=0; i<MAX_PLAYERS; i++){
                         px[i] = sbuff[pos++];
                         py[i] = sbuff[pos++];
@@ -202,28 +174,16 @@ int main(int argc, char *argv[]){
             }
         }
 
-        ///zīmējam karti
+        // 3) ZĪMĒ KARTI
         werase(win);
 
-        /// kartes renderēšana
         for(int y=0; y<config.row; y++){
             for(int x=0; x<config.col; x++){
-                char c='.';
-                switch(config.tiles[y][x]){
-                    case TILE_FLOOR:  c='.'; break;
-                    case TILE_WALL:   c='H'; break;
-                    case TILE_BLOCK:  c='S'; break;
-                    case TILE_BOMB:   c='B'; break;
-                    case TILE_FASTER: c='A'; break;
-                    case TILE_BIGGER: c='R'; break;
-                    case TILE_LONGER: c='T'; break;
-                    case TILE_BOOM:   c='*'; break;
-                }
+                char c = config.tiles[y][x];
                 mvwaddch(win, y, x*2, c);
             }
         }
 
-        /// spēlētāju renderēšana
         for(int i=0; i<MAX_PLAYERS; i++){
             if(px[i] != 255 && py[i] != 255){
                 mvwaddch(win, py[i], px[i]*2, (i==id ? '@' : '0'+i));
@@ -233,7 +193,7 @@ int main(int argc, char *argv[]){
         wrefresh(win);
     }
 
-cleanup:
+
     send_msg(sock, MSG_LEAVE, id, SERVER_ID, NULL, 0);
     close(sock);
     delwin(win);
