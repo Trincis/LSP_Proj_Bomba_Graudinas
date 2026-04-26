@@ -8,10 +8,10 @@ SERVER_TARGET = bomberman_server
 CLIENT_TARGET = client
 
 SERVER_SRC = src/server.c src/clients.c src/network.c src/game.c
-CLIENT_SRC = src/client.c src/network.c src/game.c
+CLIENT_SRC = LU_Bomberman.c src/network.c src/game.c
 
 SERVER_OBJ = $(BUILD_DIR)/server.o $(BUILD_DIR)/clients.o $(BUILD_DIR)/network.o $(BUILD_DIR)/game_server.o
-CLIENT_OBJ = $(BUILD_DIR)/client.o $(BUILD_DIR)/network.o $(BUILD_DIR)/game_client.o
+CLIENT_OBJ = $(BUILD_DIR)/LU_Bomberman.o $(BUILD_DIR)/network.o $(BUILD_DIR)/game_client.o
 
 all: $(SERVER_TARGET) $(CLIENT_TARGET)
 
@@ -34,6 +34,10 @@ $(SERVER_TARGET): $(SERVER_OBJ)
 
 $(CLIENT_TARGET): $(CLIENT_OBJ)
 	$(CC) $(CFLAGS) $^ -o $@ -lncurses
+
+$(BUILD_DIR)/LU_Bomberman.o: LU_Bomberman.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD_DIR) $(SERVER_TARGET) $(CLIENT_TARGET)

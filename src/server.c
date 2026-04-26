@@ -17,13 +17,11 @@ GameConfig g_cfg;
 int p_x[MAX_PLAYERS], p_y[MAX_PLAYERS];
 
 static void assign_spawn(int id) {
-    for (int s = 0; s < MAX_PLAYERS; s++) {
-        if (g_cfg.player_spawn_x[s] != -1) {
-            p_x[id] = g_cfg.player_spawn_x[s];
-            p_y[id] = g_cfg.player_spawn_y[s];
-            printf("[SERVER] Spawn player %d at %d,%d\n", id, p_x[id], p_y[id]);
-            return;
-        }
+    if (g_cfg.player_spawn_x[id] != -1) {
+        p_x[id] = g_cfg.player_spawn_x[id];
+        p_y[id] = g_cfg.player_spawn_y[id];
+        printf("[SERVER] Spawn player %d at %d,%d\n", id, p_x[id], p_y[id]);
+        return;
     }
 }
 
@@ -47,7 +45,7 @@ void send_map_to_all() {
 
     for (int i = 0; i < MAX_PLAYERS; i++)
         if (clients[i].connected)
-            send_msg(clients[i].sock, MSG_MAP, SERVER_ID, 254, buf, pos);
+            send_msg(clients[i].sock, MSG_MAP, SERVER_ID, i, buf, pos);
 }
 
 void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
@@ -56,7 +54,7 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
     if (h->msg_type == MSG_HELLO) {
         printf("[SERVER] HELLO from %d\n", id);
         assign_spawn(id);
-        send_msg(sock, MSG_WELCOME, SERVER_ID, 254, NULL, 0);
+        send_msg(sock, MSG_WELCOME, SERVER_ID, id, NULL, 0);
         send_map_to_all();
         return;
     }
