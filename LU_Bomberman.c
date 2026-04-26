@@ -44,7 +44,7 @@ int main(){
 
     Player speletaji[MAX_PLAYERS];
 
-    for(int i=0; i<=MAX_PLAYERS; i++){
+    for(int i=0; i<MAX_PLAYERS; i++){
         speletaji[i].id = i;
         speletaji[i].x = config.player_spawn_x[i];
         speletaji[i].y = config.player_spawn_y[i];
@@ -56,6 +56,7 @@ int main(){
         bumbas[i].aktivs = 0;
         bumbas[i].x = -1;
         bumbas[i].y = -1;
+        bumbas[i].timer = 0;
     }
 
     BOOM spradzieni[MAX_BOOM];
@@ -101,9 +102,9 @@ int main(){
                 ///MSG_MOVE_ATTEMPT ziņa augšup serverim
 
                 ///"Sobrīd lokāļas darbības"
-                int ny = speletaji[1].y-1;
-                if(ny>=0&&config.tiles[ny][speletaji[1].x]==TILE_FLOOR){
-                    speletaji[1].y = ny;
+                int ny = speletaji[0].y-1;
+                if(ny>=0&&config.tiles[ny][speletaji[0].x]==TILE_FLOOR){
+                    speletaji[0].y = ny;
                 }
                 
                 break;
@@ -112,9 +113,9 @@ int main(){
             case 's':{
                 ///MSG_MOVE_ATTEMPT ziņa lejup serverim
                  ///"Sobrīd lokāļas darbības"
-                int ny = speletaji[1].y+1;
-                if(ny<config.row&&config.tiles[ny][speletaji[1].x]==TILE_FLOOR){
-                    speletaji[1].y = ny;
+                int ny = speletaji[0].y+1;
+                if(ny<config.row&&config.tiles[ny][speletaji[0].x]==TILE_FLOOR){
+                    speletaji[0].y = ny;
                 }
                 
                 break;
@@ -123,9 +124,9 @@ int main(){
             case 'a':{
                 ///MSG_MOVE_ATTEMPT ziņa pa kreisi serverim
                  ///"Sobrīd lokāļas darbības"
-                int nx = speletaji[1].x-1;
-                if(nx>=0&&config.tiles[speletaji[1].y][nx]==TILE_FLOOR){
-                    speletaji[1].x = nx;
+                int nx = speletaji[0].x-1;
+                if(nx>=0&&config.tiles[speletaji[0].y][nx]==TILE_FLOOR){
+                    speletaji[0].x = nx;
                 }
                 
                 break;
@@ -133,9 +134,9 @@ int main(){
             case KEY_RIGHT:
             case 'd':{
                 ///MSG_MOVE_ATTEMPT ziņa pa labi serverim
-                int nx = speletaji[1].x+1;
-                if(nx<config.col&&config.tiles[speletaji[1].y][nx]==TILE_FLOOR){
-                    speletaji[1].x = nx;
+                int nx = speletaji[0].x+1;
+                if(nx<config.col&&config.tiles[speletaji[0].y][nx]==TILE_FLOOR){
+                    speletaji[0].x = nx;
                 }
                 
                 break;
@@ -145,8 +146,8 @@ int main(){
 
                 for(int i=0; i<MAX_BOMBS; i++){
                     if(!bumbas[i].aktivs){
-                        bumbas[i].x = speletaji[1].x;
-                        bumbas[i].y = speletaji[1].y;
+                        bumbas[i].x = speletaji[0].x;
+                        bumbas[i].y = speletaji[0].y;
                         bumbas[i].aktivs = 1;
                         bumbas[i].timer = config.fuse_time*10;
                         break;
@@ -179,7 +180,7 @@ int main(){
         }
 
     map_render(win, &config);
-    players_render(win, speletaji, MAX_PLAYERS+1);
+    players_render(win, speletaji, MAX_PLAYERS);
     bombs_render(win, bumbas, MAX_BOMBS);
 
     }

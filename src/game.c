@@ -166,7 +166,7 @@ void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
                         spradzieni[i].y=ny;
                         spradzieni[i].aktivs=1;
                         spradzieni[i].timer=5;
-                        cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+                        cfg->tiles[ny][nx] = TILE_BOOM;
                         break;
                     }
                 }
@@ -182,7 +182,6 @@ void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
                     break;
                 }
             }
-            if(cfg->tiles[ny][nx] == TILE_BLOCK) break;
         }
     }
     bumba->aktivs = 0;
