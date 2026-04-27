@@ -167,7 +167,7 @@ int main() {
     while (1) {
 
         uint64_t now = clock();
-        if (now - last_tick > (CLOCKS_PER_SEC / 120)) {
+        if (now - last_tick > (CLOCKS_PER_SEC / 1024)) {
             last_tick = now;
             printf("TICK\n");
 
