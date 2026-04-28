@@ -46,6 +46,8 @@ typedef struct{
     int dzivs;
     int atrums;
     int radiuss;
+    int bumbas;
+    int timer;
 } Player;
 
 typedef struct{
