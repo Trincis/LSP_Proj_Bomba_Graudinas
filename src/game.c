@@ -129,60 +129,99 @@ void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
 }
 #endif
 
-void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp){
-    int virz[4][2]={{0,-1}, {0,1}, {-1,0},{1,0}};
+void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
+{
+    // 1) Samazina bumbu taimerus
+    for (int i = 0; i < MAX_BOMBS; i++) {
+        if (!bombs[i].aktivs)
+            continue;
 
-    cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
+        bombs[i].timer--;
 
-    for(int i = 0; i<max_exp; i++){
-        if(!spradzieni[i].aktivs){
-            spradzieni[i].x=bumba->x;
-            spradzieni[i].y=bumba->y;
-            spradzieni[i].aktivs=1;
-            spradzieni[i].timer=5;
-            cfg->tiles[bumba->y][bumba->x] = TILE_BOOM;
-            break;
+        // Ja vēl nav jāsprāgst — turpinām
+        if (bombs[i].timer > 0)
+            continue;
+
+        // 2) Bumba sprāgst
+        int bx = bombs[i].x;
+        int by = bombs[i].y;
+
+        // Notīra bumbu no kartes
+        cfg->tiles[by][bx] = TILE_BOOM;
+
+        // 3) Izveido centrālo sprādzienu
+        for (int s = 0; s < MAX_BOOM; s++) {
+            if (!spradzieni[s].aktivs) {
+                spradzieni[s].aktivs = 1;
+                spradzieni[s].x = bx;
+                spradzieni[s].y = by;
+                spradzieni[s].timer = 5;
+                break;
+            }
         }
-    }
 
-    for(int d=0; d<4; d++){
-        for(int r=1; r<=cfg->exp_distance; r++){
-            int nx = bumba->x+virz[d][0]*r;
-            int ny = bumba->y+virz[d][1]*r;
+        // 4) Sprādziena izplatīšanās
+        int virz[4][2] = {
+            {0,-1}, {0,1}, {-1,0}, {1,0}
+        };
 
-            if(nx<0||nx>=cfg->col||ny<0||ny>=cfg->row){///paliek ekrāna robežās
-                break;
-            }
-            if(cfg->tiles[ny][nx]==TILE_WALL){///ja cieta siena
-                break;
-            }
+        for (int d = 0; d < 4; d++) {
+            for (int r = 1; r <= cfg->exp_distance; r++) {
 
-            if(cfg->tiles[ny][nx]==TILE_BLOCK){
-                cfg->tiles[ny][nx] = TILE_FLOOR;
+                int nx = bx + virz[d][0] * r;
+                int ny = by + virz[d][1] * r;
 
-                for(int i=0; i<max_exp; i++){
-                    if(!spradzieni[i].aktivs){
-                        spradzieni[i].x=nx;
-                        spradzieni[i].y=ny;
-                        spradzieni[i].aktivs=1;
-                        spradzieni[i].timer=5;
-                        cfg->tiles[ny][nx] = TILE_BOOM;
+                if (nx < 0 || nx >= cfg->col || ny < 0 || ny >= cfg->row)
+                    break;
+
+                if (cfg->tiles[ny][nx] == TILE_WALL)
+                    break;
+
+                // Ja ir bloks — iznīcina un apstājas
+                if (cfg->tiles[ny][nx] == TILE_BLOCK) {
+                    cfg->tiles[ny][nx] = TILE_FLOOR;
+
+                    for (int s = 0; s < MAX_BOOM; s++) {
+                        if (!spradzieni[s].aktivs) {
+                            spradzieni[s].aktivs = 1;
+                            spradzieni[s].x = nx;
+                            spradzieni[s].y = ny;
+                            spradzieni[s].timer = 5;
+                            break;
+                        }
+                    }
+                    break;
+                }
+
+                // Parasts sprādziena laukums
+                for (int s = 0; s < MAX_BOOM; s++) {
+                    if (!spradzieni[s].aktivs) {
+                        spradzieni[s].aktivs = 1;
+                        spradzieni[s].x = nx;
+                        spradzieni[s].y = ny;
+                        spradzieni[s].timer = 5;
                         break;
                     }
                 }
-                break;
-            }
-            for(int i=0; i<max_exp; i++){
-                if(!spradzieni[i].aktivs){
-                    spradzieni[i].x=nx;
-                    spradzieni[i].y=ny;
-                    spradzieni[i].aktivs=1;
-                    spradzieni[i].timer=5;
-                    cfg->tiles[ny][nx] = TILE_BOOM;
-                    break;
-                }
+
+                cfg->tiles[ny][nx] = TILE_BOOM;
             }
         }
+
+        // 5) Bumba vairs nav aktīva
+        bombs[i].aktivs = 0;
     }
-    bumba->aktivs = 0;
+
+    // 6) Sprādzienu animācija (pazūd pēc 5 tickiem)
+    for (int i = 0; i < MAX_BOOM; i++) {
+        if (!spradzieni[i].aktivs)
+            continue;
+
+        spradzieni[i].timer--;
+
+        if (spradzieni[i].timer <= 0) {
+            cfg->tiles[spradzieni[i].y][spradzieni[i].x] = TILE_FLOOR;
+            spradzieni[i].aktivs = 0;
+        }
+    }
 }

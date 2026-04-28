@@ -11,7 +11,17 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+#define DBG(...) fprintf(stderr, "[CLIENT] " __VA_ARGS__)
+
+#define GAME_LOBBY   0
+#define GAME_RUNNING 1
+#define GAME_END     2
+
+#define MSG_MAP_SELECT   200
+#define MSG_START_GAME   201
+
 int main(int argc, char *argv[]){
+    fprintf(stderr, "CLIENT STARTED\n");
     char serverIP[64];
     if(argc > 1) strcpy(serverIP, argv[1]);
     else strcpy(serverIP, "127.0.0.1");
@@ -20,7 +30,7 @@ int main(int argc, char *argv[]){
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if(sock < 0){
-        fprintf(stderr, "Neizveidoja socketu\n");
+        DBG("Socket creation failed\n");
         return 1;
     }
 
@@ -30,9 +40,11 @@ int main(int argc, char *argv[]){
     inet_pton(AF_INET, serverIP, &srv.sin_addr);
 
     if(connect(sock, (struct sockaddr *)&srv, sizeof(srv)) < 0){
-        fprintf(stderr, "nepieslēdzās serverim\n");
+        DBG("Connection failed\n");
         return 1;
     }
+
+    DBG("Connected to server\n");
 
     send_msg(sock, MSG_HELLO, 0, SERVER_ID, NULL, 0);
 
@@ -41,27 +53,51 @@ int main(int argc, char *argv[]){
 
     int id = -1;
     int px[MAX_PLAYERS], py[MAX_PLAYERS];
+    int ready_flags[MAX_PLAYERS];
+    memset(ready_flags, 0, sizeof(ready_flags));
 
     int got_welcome = 0;
     int got_map = 0;
+    int game_status = GAME_LOBBY;
+    int is_host = 0;
+    int selected_map = 0;
 
-    //sinhronizācija pirms spēles sākuma - sagaidām gan WELCOME, gan MAP
-    while (!got_welcome || !got_map) {
+    // ============================
+    // 1) SAGAIDĀM WELCOME + STATUS
+    // ============================
+    while (!got_welcome) {
         msg_header_t h;
         uint8_t buff[65536];
 
         int r = recv_msg(sock, &h, buff, sizeof(buff));
-        if (r <= 0) continue;
+        if (r <= 0) {
+            DBG("Connection lost before WELCOME\n");
+            close(sock);
+            return 1;
+        }
+
+        DBG("Received msg_type=%d\n", h.msg_type);
 
         if (h.msg_type == MSG_WELCOME) {
             id = h.target_id;
+            is_host = (id == 0);
+            DBG("WELCOME received, id=%d host=%d\n", id, is_host);
             got_welcome = 1;
         }
 
-        if (h.msg_type == MSG_MAP) {
-            fprintf(stderr, "[CLIENT DEBUG] GOT MAP\n");
-            fprintf(stderr, "[CLIENT DEBUG] MY POS = (%d,%d)\n", px[id], py[id]);
+        if (h.msg_type == MSG_SET_STATUS) {
+            game_status = buff[0];
+            DBG("SET_STATUS=%d\n", game_status);
+        }
 
+        if (h.msg_type == MSG_MAP_SELECT) {
+            selected_map = buff[0];
+            DBG("MAP_SELECT=%d\n", selected_map);
+        }
+
+        // SERVERIS SŪTA MAP UZREIZ PĒC HELLO → APSTRĀDĀJAM TO ŠEIT
+        if (h.msg_type == MSG_MAP) {
+            DBG("GOT MAP (early)\n");
             int pos = 0;
             config.row = buff[pos++];
             config.col = buff[pos++];
@@ -79,6 +115,11 @@ int main(int argc, char *argv[]){
         }
     }
 
+    // ============================
+    // 2) START NCURSES
+    // ============================
+    DBG("Initializing ncurses\n");
+
     initscr();
     cbreak();
     noecho();
@@ -87,13 +128,163 @@ int main(int argc, char *argv[]){
     clear();
     refresh();
 
+    DBG("Entering LOBBY loop\n");
+
+    // ============================
+    // 3) LOBBY CIKLS
+    // ============================
+    while (game_status == GAME_LOBBY) {
+
+        // Lasām servera ziņas
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(sock, &fds);
+        struct timeval tv = {0, 100000};
+
+        if (select(sock + 1, &fds, NULL, NULL, &tv) > 0) {
+            while (1) {
+                msg_header_t h;
+                uint8_t sbuff[65536];
+
+                int r = recv_msg(sock, &h, sbuff, sizeof(sbuff));
+                if (r <= 0) break;
+
+                DBG("Lobby received msg_type=%d\n", h.msg_type);
+
+                if (h.msg_type == MSG_SET_STATUS) {
+                    game_status = sbuff[0];
+                    DBG("SET_STATUS=%d\n", game_status);
+                }
+
+                if (h.msg_type == MSG_SET_READY) {
+                    int pid = sbuff[0];
+                    int val = sbuff[1];
+                    ready_flags[pid] = val;
+                    DBG("READY pid=%d val=%d\n", pid, val);
+                }
+
+                if (h.msg_type == MSG_MAP_SELECT) {
+                    selected_map = sbuff[0];
+                    DBG("MAP_SELECT=%d\n", selected_map);
+                }
+
+                if (h.msg_type == MSG_MAP) {
+                    DBG("GOT MAP in lobby\n");
+                    int pos = 0;
+                    config.row = sbuff[pos++];
+                    config.col = sbuff[pos++];
+
+                    for (int y = 0; y < config.row; y++)
+                        for (int x = 0; x < config.col; x++)
+                            config.tiles[y][x] = sbuff[pos++];
+
+                    for (int i = 0; i < MAX_PLAYERS; i++) {
+                        px[i] = sbuff[pos++];
+                        py[i] = sbuff[pos++];
+                    }
+
+                    got_map = 1;
+                }
+
+                int more = 0;
+                ioctl(sock, FIONREAD, &more);
+                if (more <= 0) break;
+            }
+        }
+
+        // Zīmē lobby ekrānu
+        clear();
+        mvprintw(0, 0, "Bomberman LOBBY (DEBUG)");
+        mvprintw(1, 0, "ID=%d HOST=%d", id, is_host);
+        mvprintw(2, 0, "Selected map: %d", selected_map);
+
+        int line = 4;
+        mvprintw(line++, 0, "Players:");
+        for (int i = 0; i < MAX_PLAYERS; i++)
+            mvprintw(line++, 0, "  %d : %s", i, ready_flags[i] ? "READY" : "NOT READY");
+
+        mvprintw(line+1, 0, "Keys:");
+        mvprintw(line+2, 0, "  r - toggle READY");
+        if (is_host) {
+            mvprintw(line+3, 0, "  1/2/3 - select map");
+            mvprintw(line+4, 0, "  s - start game");
+        }
+        mvprintw(line+5, 0, "  q - quit");
+
+        refresh();
+
+        int ch = getch();
+
+        if (ch == 'q') {
+            DBG("Quit from lobby\n");
+            endwin();
+            close(sock);
+            return 0;
+        }
+
+        if (ch == 'r') {
+            ready_flags[id] = !ready_flags[id];
+            uint8_t p[1] = { (uint8_t)ready_flags[id] };
+            DBG("Sending READY=%d\n", ready_flags[id]);
+            send_msg(sock, MSG_SET_READY, id, SERVER_ID, p, 1);
+        }
+
+        if (is_host && (ch=='1'||ch=='2'||ch=='3')) {
+            int idx = ch - '1';
+            uint8_t p[1] = { (uint8_t)idx };
+            DBG("Sending MAP_SELECT=%d\n", idx);
+            send_msg(sock, MSG_MAP_SELECT, id, SERVER_ID, p, 1);
+        }
+
+        if (is_host && ch=='s') {
+            DBG("Sending START_GAME\n");
+            send_msg(sock, MSG_START_GAME, id, SERVER_ID, NULL, 0);
+        }
+    }
+
+    DBG("Leaving lobby, waiting for MAP\n");
+
+    // ============================
+    // 4) SAGAIDĀM MAP, JA NAV
+    // ============================
+    while (!got_map) {
+        msg_header_t h;
+        uint8_t sbuff[65536];
+
+        int r = recv_msg(sock, &h, sbuff, sizeof(sbuff));
+        DBG("Waiting-for-MAP msg_type=%d\n", h.msg_type);
+
+        if (h.msg_type == MSG_MAP) {
+            int pos = 0;
+            config.row = sbuff[pos++];
+            config.col = sbuff[pos++];
+
+            for (int y = 0; y < config.row; y++)
+                for (int x = 0; x < config.col; x++)
+                    config.tiles[y][x] = sbuff[pos++];
+
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                px[i] = sbuff[pos++];
+                py[i] = sbuff[pos++];
+            }
+
+            DBG("GOT MAP (start)\n");
+            got_map = 1;
+        }
+    }
+
+    DBG("Starting GAME LOOP\n");
+
+    // ============================
+    // 5) SPĒLES CIKLS
+    // ============================
     WINDOW *win = newwin(config.row + 2, config.col * 2 + 1, 1, 0);
     keypad(win, TRUE);
     timeout(50);
 
     while (1) {
 
-        // sākumā apstrādājam servera ziņas, lai izvairītos no sinhronizācijas problēmām
+        // Lasām servera ziņas spēles laikā
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sock, &fds);
@@ -106,6 +297,8 @@ int main(int argc, char *argv[]){
 
                 int r = recv_msg(sock, &h, sbuff, sizeof(sbuff));
                 if (r <= 0) break;
+
+                DBG("GAME received msg_type=%d\n", h.msg_type);
 
                 if (h.msg_type == MSG_MAP) {
                     int pos = 0;
@@ -120,6 +313,8 @@ int main(int argc, char *argv[]){
                         px[i] = sbuff[pos++];
                         py[i] = sbuff[pos++];
                     }
+
+                    DBG("MAP update received in GAME LOOP\n");
                 }
 
                 int more = 0;
@@ -128,19 +323,22 @@ int main(int argc, char *argv[]){
             }
         }
 
-        //taustiņus lasa tikai pēc servera ziņu apstrādes, lai izvairītos no sinhronizācijas problēmām
         int ch = wgetch(win);
 
-        if (ch == 'q') break;
+        if (ch == 'q') {
+            DBG("Quit pressed, exiting game loop\n");
+            break;
+        }
 
-        if (ch == 'w') { uint8_t v='U'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if (ch == 's') { uint8_t v='D'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if (ch == 'a') { uint8_t v='L'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if (ch == 'd') { uint8_t v='R'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if (ch == 'w') { uint8_t v='U'; DBG("Sending MOVE U\n"); send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if (ch == 's') { uint8_t v='D'; DBG("Sending MOVE D\n"); send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if (ch == 'a') { uint8_t v='L'; DBG("Sending MOVE L\n"); send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if (ch == 'd') { uint8_t v='R'; DBG("Sending MOVE R\n"); send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+        if (ch == ' ') { uint8_t v=0;  DBG("Sending BOMB\n");     send_msg(sock, MSG_BOMB_ATTEMPT, id, SERVER_ID, &v, 1); }
 
-        //zīmējam karti
         werase(win);
 
+        // Zīmē karti
         for (int y = 0; y < config.row; y++) {
             for (int x = 0; x < config.col; x++) {
                 char c = '.';
@@ -152,11 +350,13 @@ int main(int argc, char *argv[]){
                     case TILE_BIGGER: c = 'R'; break;
                     case TILE_LONGER: c = 'T'; break;
                     case TILE_BOOM:   c = '*'; break;
+                    default:          c = '.'; break;
                 }
                 mvwaddch(win, y, x * 2, c);
             }
         }
 
+        // Zīmē spēlētājus
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (px[i] != 255 && py[i] != 255) {
                 mvwaddch(win, py[i], px[i] * 2, (i == id ? '@' : '0' + i));
@@ -166,6 +366,7 @@ int main(int argc, char *argv[]){
         wrefresh(win);
     }
 
+    DBG("Exiting ncurses\n");
     endwin();
     close(sock);
     return 0;

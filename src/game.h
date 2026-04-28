@@ -60,7 +60,7 @@ typedef struct{
 }BOOM;
 
 int game_config_load(GameConfig *config, const char *filename);
-void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni, int max_exp);
+void Spragsti(GameConfig *cfg, Bomb *bumba, BOOM *spradzieni);
 
 #ifndef NO_RENDER
 void map_render(WINDOW *win, const GameConfig *cfg);
