@@ -235,6 +235,7 @@ static void end_game(int winner) {
     server_status = GAME_LOBBY;
 
     memset(alive, 0, sizeof(alive));
+    pl_ready[host_id] = 1;
 
     uint8_t st2 = GAME_LOBBY;
     broadcast_to_all(MSG_SET_STATUS, &st2, 1);

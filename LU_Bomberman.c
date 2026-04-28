@@ -56,6 +56,7 @@ int main(int argc, char *argv[]){
     int game_status = GAME_LOBBY;
 
     int px[MAX_PLAYERS], py[MAX_PLAYERS];
+    int pl_ready[MAX_PLAYERS] = {0};
     memset(px, 255, sizeof(px));
     memset(py, 255, sizeof(py));
 
@@ -117,6 +118,9 @@ int main(int argc, char *argv[]){
 lobby_start:
     game_status = GAME_LOBBY;
     got_map = 0;
+    memset(px, 255, sizeof(px)); ///atiestata spēlētāju lokācijas
+    memset(py, 255, sizeof(py));
+    memset(pl_ready, 0, sizeof(pl_ready));
 
     clear();
     refresh();
@@ -257,6 +261,9 @@ lobby_start:
     WINDOW *win = newwin(cfg.row+2, cfg.col*2+1, 1, 0);
     keypad(win, TRUE);
     wtimeout(win, 50);
+
+    clear();
+    refresh();
 
     while(1){
 
