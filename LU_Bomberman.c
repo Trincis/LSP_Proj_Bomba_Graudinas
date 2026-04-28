@@ -18,12 +18,14 @@
 
 int main(int argc, char *argv[]){
     char serverIP[64];
+    // Ja IP adrese norādīta kā argumenta, izmanto to, citādi izmanto localhost
     if(argc>1) strcpy(serverIP, argv[1]);
     else strcpy(serverIP, "127.0.0.1");
 
     int port = 5000;
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(AF_INET, SOCK_STREAM, 0);// Izveido TCP socketu
+    // Pārbauda, vai socket izveidošana izdevās
     if(sock<0){
         fprintf(stderr, "Socket error\n");
         return 1;
@@ -32,8 +34,8 @@ int main(int argc, char *argv[]){
     struct sockaddr_in srv = {0};
     srv.sin_family = AF_INET;
     srv.sin_port = htons(port);
-    inet_pton(AF_INET, serverIP, &srv.sin_addr);
-
+    inet_pton(AF_INET, serverIP, &srv.sin_addr);// Pārvērš IP adresi binārā formā un sagatavo sockaddr_in struktūru savienojumam
+    // Mēģina izveidot savienojumu ar serveri, un pārbauda, vai tas izdevās
     if(connect(sock, (struct sockaddr *)&srv, sizeof(srv))<0){
         fprintf(stderr, "Connection failed\n");
         return 1;
@@ -42,8 +44,8 @@ int main(int argc, char *argv[]){
     DBG("Connected\n");
 
     uint8_t hello[50] = {0};
-    memcpy(hello, "LU_Client_2026", 14);
-    memcpy(hello+20, "Player", 6);
+    memcpy(hello, "LU_Client_2026", 14);// Sagatavo HELLO ziņu ar spēlētāja vārdu
+    memcpy(hello+20, "Player", 6);// Spēlētāja vārds tiek sūtīts HELLO ziņojumā, sākot no 20. bita, lai atstātu vietu citiem datiem nākotnē
     send_msg(sock, MSG_HELLO, 0, SERVER_ID, hello, 50);
 
     GameConfig cfg;
@@ -68,34 +70,34 @@ int main(int argc, char *argv[]){
         uint8_t buf[65536];
 
         int r = recv_msg(sock, &h, buf, sizeof(buf));
-        if(r <= 0){
+        if(r <= 0){// Ja savienojums ir pārtrūcis, iziet no programmas
             fprintf(stderr, "Disconnected before WELCOME\n");
             return 1;
         }
-
+        // Apstrādā WELCOME ziņojumu, iegūstot spēlētāja ID, hosta statusu, un citu informāciju
         if(h.msg_type == MSG_WELCOME){
             id = h.target_id;
             is_host = (id == 0);
             got_welcome = 1;
         }
-
+        // Apstrādā SET_STATUS ziņojumu, atjauninot spēles statusu
         if(h.msg_type == MSG_SET_STATUS){
             game_status = buf[0];
         }
-
+        // Apstrādā MAP_SELECT ziņojumu, atjauninot izvēlēto karti
         if(h.msg_type == MSG_MAP){
             int pos = 0;
-            cfg.row          = buf[pos++];
+            cfg.row          = buf[pos++];// Pārkopē kartes datus no saņemtā bufera uz config struktūru
             cfg.col          = buf[pos++];
             cfg.pl_speed     = buf[pos++];
             cfg.exp_distance = buf[pos++];
             cfg.exp_danger   = buf[pos++];
             cfg.fuse_time    = buf[pos++];
-
+            // Pārkopē kartes datus no saņemtā bufera uz config struktūru
             for(int y=0;y<cfg.row;y++)
                 for(int x=0;x<cfg.col;x++)
                     cfg.tiles[y][x] = buf[pos++];
-
+            // Pārkopē spēlētāju pozīcijas no saņemtā bufera uz px un py masīviem
             for(int i=0;i<MAX_PLAYERS;i++){
                 px[i] = buf[pos++];
                 py[i] = buf[pos++];
@@ -105,11 +107,11 @@ int main(int argc, char *argv[]){
         }
     }
 
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    curs_set(0);
+    initscr();// Inicializē ncurses režīmu
+    cbreak();// Iespējo cbreak režīmu, kas ļauj lasīt ievadi bez enter nospiešanas
+    noecho();// Izslēdz ievades atspoguļošanu ekrānā
+    keypad(stdscr, TRUE);// Iespējo speciālo taustiņu atpazīšanu (piemēram, bultiņas)
+    curs_set(0);// Paslēpj kursoru
 
 lobby_start:
     game_status = GAME_LOBBY;

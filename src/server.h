@@ -6,7 +6,7 @@
 
 void send_map_to_all();
 
-// Ziņu apstrādes funkcija (definēta server.c)
+// Ziņu apstrādes funkcija
 void handle_message(int sock, msg_header_t *h, uint8_t *payload);
 
 #endif
