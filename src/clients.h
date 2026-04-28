@@ -3,14 +3,13 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-
-#define MAX_PLAYERS 8
+#include "protocol.h"
 
 typedef struct {
     int sock;
     bool connected;
     char name[31];
-    uint8_t id;
+    int id;
     bool ready;
 } client_t;
 

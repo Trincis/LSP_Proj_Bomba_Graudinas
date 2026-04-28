@@ -5,20 +5,23 @@
 #include <ncurses.h>
 #endif
 
+#include <stdint.h>
+
 #define MAX_MAP_SIZE 255
 #define MAX_PLAYERS 8
 #define MAX_BOMBS 16
 #define MAX_BOOM 64
 
 typedef enum{
-    TILE_FLOOR = '.',
-    TILE_WALL = 'H',
-    TILE_BLOCK = 'S',
-    TILE_BOMB = 'B',
-    TILE_FASTER = 'A',
-    TILE_BIGGER = 'R',
-    TILE_LONGER = 'T',
-    TILE_BOOM = '*'
+    TILE_FLOOR   = '.',
+    TILE_WALL    = 'H',
+    TILE_BLOCK   = 'S',
+    TILE_BOMB    = 'B',
+    TILE_FASTER  = 'A',
+    TILE_BIGGER  = 'R',
+    TILE_LONGER  = 'T',
+    TILE_MOREBOMBS = 'N',
+    TILE_BOOM    = '*'
 }TileType;
 
 typedef struct{
@@ -50,6 +53,7 @@ typedef struct{
     int y;
     int aktivs;
     int timer;
+    int owner;
 } Bomb;
 
 typedef struct{
@@ -67,5 +71,14 @@ void map_render(WINDOW *win, const GameConfig *cfg);
 void players_render(WINDOW *w, const Player *speletaji, int sk);
 void bombs_render(WINDOW *w, const Bomb *bumbas, int sk);
 #endif
+
+static inline uint16_t make_cell_index(uint16_t row, uint16_t col, uint16_t cols) {
+    return (uint16_t)(row * cols + col);
+}
+
+static inline void split_cell_index(uint16_t index, uint16_t cols, uint16_t *row, uint16_t *col) {
+    *row = (uint16_t)(index / cols);
+    *col = (uint16_t)(index % cols);
+}
 
 #endif

@@ -14,18 +14,18 @@ int game_config_load(GameConfig *config, const char *filename){
 
     //Nolasam kartes konfigurāciju
     if(fscanf(fin, "%d %d %d %d %d %d",
-              &config->row,
-              &config->col,
-              &config->pl_speed,
-              &config->exp_danger,
-              &config->exp_distance,
-              &config->fuse_time) != 6)
+                &config->row,
+                &config->col,
+                &config->pl_speed,
+                &config->exp_distance,
+                &config->exp_danger,
+                &config->fuse_time) != 6)
     {
         fclose(fin);
         return -1;
     }
 
-    for(int i = 0; i <= MAX_PLAYERS; i++){
+    for(int i = 0; i < MAX_PLAYERS; i++){
         config->player_spawn_x[i] = -1;
         config->player_spawn_y[i] = -1;
     }
@@ -39,13 +39,22 @@ int game_config_load(GameConfig *config, const char *filename){
                 return -1;
             }
 
-            // Spēlētāju sākuma pozīcijas: '0'..'7'
+            // Spēlētāju sākuma pozīcijas: '1'..'8'
             if (c >= '0' && c <= '7') {
                 int id = c - '0';
                 config->player_spawn_x[id] = x;
                 config->player_spawn_y[id] = y;
                 config->tiles[y][x] = TILE_FLOOR;
                 continue;
+            }
+            if (c >= '1' && c <= '8') {
+                int id = c - '1';
+                if (id >= 0 && id < MAX_PLAYERS) {
+                    config->player_spawn_x[id] = x;
+                    config->player_spawn_y[id] = y;
+                    config->tiles[y][x] = TILE_FLOOR;
+                    continue;
+                }
             }
 
             switch(c){
@@ -55,6 +64,7 @@ int game_config_load(GameConfig *config, const char *filename){
                 case 'A': config->tiles[y][x] = TILE_FASTER; break;
                 case 'R': config->tiles[y][x] = TILE_BIGGER; break;
                 case 'T': config->tiles[y][x] = TILE_LONGER; break;
+                case 'N': config->tiles[y][x] = TILE_MOREBOMBS; break;
                 case '*': config->tiles[y][x] = TILE_BOOM;   break;
                 default:  config->tiles[y][x] = TILE_FLOOR;  break;
             }
@@ -78,6 +88,7 @@ void map_render(WINDOW *w, const GameConfig *cfg){
                 case TILE_FASTER: ch='A'; break;
                 case TILE_BIGGER: ch='R'; break;
                 case TILE_LONGER: ch='T'; break;
+                case TILE_MOREBOMBS: ch='N'; break;
                 case TILE_BOOM:   ch='*'; break;
                 default:          ch='.'; break;
             }
