@@ -234,6 +234,20 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
             p_x[id] = nx;
             p_y[id] = ny;
 
+            ///Nāve
+            if(g_cfg.tiles[ny][nx] == TILE_BOOM){
+                uint8_t payload[1] = {id};
+                for(int j = 0; j<MAX_PLAYERS; j++){
+                    if(clients[j].connected){
+                        send_msg(clients[j].sock, MSG_DEATH, SERVER_ID, j, payload, 1);
+                    }
+                }
+                remove_client(id);
+                p_x[id]=p_y[id] = -1;
+                send_map_to_all();
+                return;
+            }
+
             send_map_to_all();
             return;
         }
@@ -261,6 +275,24 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
     }
 }
 
+void vaiMiris(){
+    for(int i = 0; i<MAX_PLAYERS; i++){
+        if(!clients[i].connected) continue;
+
+        if(g_cfg.tiles[p_y[i]][p_x[i]]==TILE_BOOM){
+            printf("[SERVER] Player %d died", i);
+            uint8_t payload[1] = {i};
+            for(int j = 0; j<MAX_PLAYERS; j++){
+                if(clients[j].connected){
+                    send_msg(clients[j].sock, MSG_DEATH, SERVER_ID, j, payload, 1);
+                }
+            }
+            remove_client(i);
+            p_x[i]=p_y[i] = -1;
+        }
+    }
+}
+
 //
 // =========================
 //  TICK SISTĒMA
@@ -281,6 +313,7 @@ void tick_logic() {
     last_tick = now;
 
     Spragsti(&g_cfg, bombs, spradzieni);
+    vaiMiris();
     send_map_to_all();
 }
 

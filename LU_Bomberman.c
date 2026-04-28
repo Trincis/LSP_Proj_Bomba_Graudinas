@@ -356,6 +356,29 @@ int main(int argc, char *argv[]){
 
                     wrefresh(win);
                 }
+                //Nāve
+                if(h.msg_type == MSG_DEATH){
+                    uint8_t pid = sbuff[0];
+                    px[pid] = 255;
+                    py[pid] = 255;
+
+                    if(pid == id){
+                        werase(win);
+                        mvwprintw(win, config.row/2, config.col-4, "Game Over");
+                        wrefresh(win);
+                        wgetch(win);
+                        goto cleanup;
+                    }
+                }
+                //Bonuss saņemts
+                if(h.msg_type == MSG_BONUS_RETRIEVED){
+                    uint8_t pid = sbuff[0];
+                    uint8_t b = sbuff[1];
+
+                    if(b == TILE_FASTER) patrums[pid]++;
+                    if(b == TILE_BIGGER) pradiuss[pid]++;
+                    if(b == TILE_LONGER) config.fuse_time++;
+                }
 
                 int more = 0;
                 ioctl(sock, FIONREAD, &more);
@@ -364,6 +387,8 @@ int main(int argc, char *argv[]){
         }
     }
 
+///Visa novākšana beigās
+cleanup:
     send_msg(sock, MSG_LEAVE, id, SERVER_ID, NULL, 0);
     close(sock);
     delwin(win);
