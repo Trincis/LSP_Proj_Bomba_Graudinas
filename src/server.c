@@ -104,7 +104,8 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
         if (nx < 0 || nx >= g_cfg.col || ny < 0 || ny >= g_cfg.row)
             return;
 
-        if (g_cfg.tiles[ny][nx] != TILE_FLOOR)
+        TileType t = g_cfg.tiles[ny][nx];
+        if (t == TILE_WALL || t == TILE_BLOCK || t == TILE_BOMB)
             return;
 
         for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -116,6 +117,20 @@ void handle_message(int sock, int id, msg_header_t *h, uint8_t *payload) {
 
         p_x[id] = nx;
         p_y[id] = ny;
+
+        if(t == TILE_FASTER || t == TILE_BIGGER || t == TILE_LONGER){
+            uint8_t bonusp[2];
+            bonusp[0] = id; ///kurš
+            bonusp [1] = t; ///ko
+
+            for(int i = 0; i<MAX_PLAYERS; i++){
+                if(clients[i].connected){
+                    send_msg(clients[i].sock, MSG_BONUS_RETRIEVED, SERVER_ID, i, bonusp, 2);
+                }
+            }
+            g_cfg.tiles[ny][nx] = TILE_FLOOR;
+        }
+
         send_map_to_all();
         return;
     }
