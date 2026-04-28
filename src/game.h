@@ -54,6 +54,7 @@ typedef struct{
     int aktivs;
     int timer;
     int owner;
+    int radiuss;
 } Bomb;
 
 typedef struct{

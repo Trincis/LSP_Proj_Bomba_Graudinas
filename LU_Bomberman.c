@@ -108,6 +108,7 @@ int main(int argc, char *argv[]){
     }
 
     initscr();// Inicializē ncurses režīmu
+    timeout(100);
     cbreak();// Iespējo cbreak režīmu, kas ļauj lasīt ievadi bez enter nospiešanas
     noecho();// Izslēdz ievades atspoguļošanu ekrānā
     keypad(stdscr, TRUE);// Iespējo speciālo taustiņu atpazīšanu (piemēram, bultiņas)
@@ -188,6 +189,10 @@ lobby_start:
             mvprintw(11,0,"Current: %d", selected_map);
         }
 
+        if(!is_host){
+            mvprintw(5, 0, "Press R when you are ready");
+        }
+
         refresh();
 
         int ch = getch();
@@ -208,6 +213,11 @@ lobby_start:
                 uint8_t st = GAME_RUNNING;
                 send_msg(sock, MSG_SET_STATUS, id, SERVER_ID, &st, 1);
             }
+        }
+
+        if(!is_host && ch == 'r'){
+            uint8_t ready = 1;
+            send_msg(sock, MSG_SET_READY, id, SERVER_ID, &ready, 1);
         }
     }
 

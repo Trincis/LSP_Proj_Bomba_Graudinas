@@ -25,6 +25,7 @@ typedef enum {
     MSG_PONG = 4,
     MSG_LEAVE = 5, 
     MSG_ERROR = 6,
+    MSG_SET_READY = 10,
 
     //Spēles stāvoklis
     MSG_MAP = 7,

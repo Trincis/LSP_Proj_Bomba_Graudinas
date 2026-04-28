@@ -152,7 +152,7 @@ void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
         };
 
         for (int d = 0; d < 4; d++) {
-            for (int r = 1; r <= cfg->exp_distance; r++) {
+            for (int r = 1; r <= bombs[i].radiuss; r++) {
 
                 int nx = bx + virz[d][0] * r;
                 int ny = by + virz[d][1] * r;

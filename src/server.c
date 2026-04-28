@@ -24,6 +24,7 @@ static GameConfig g_cfg;
 static int server_status = GAME_LOBBY;
 static int host_id = -1;
 // Spēlētāju stāvoklis
+static uint8_t pl_ready[MAX_PLAYERS];
 static int p_row[MAX_PLAYERS];
 static int p_col[MAX_PLAYERS];
 static uint8_t alive[MAX_PLAYERS];
@@ -32,6 +33,10 @@ static Bomb bombs[MAX_BOMBS];
 static BOOM spradzieni[MAX_BOOM];
 
 static uint8_t bomb_count[MAX_PLAYERS];   // cik bumbas drīkst vienlaikus
+static uint8_t pl_speed[MAX_PLAYERS];
+static uint8_t pl_radiuss[MAX_PLAYERS];
+static uint8_t pl_fuse[MAX_PLAYERS];
+
 // Laika kontrole
 static struct timespec last_tick = {0};
 
@@ -125,8 +130,10 @@ static void handle_hello(int cid, msg_header_t *h, uint8_t *payload) {
     if (h->payload_len >= 50)
         memcpy(name, payload + 20, 30);
     // Ja nav hosta, šis spēlētājs kļūst par hostu
-    if (host_id == -1)
+    if (host_id == -1){
         host_id = cid;
+        pl_ready[cid] = 1;
+    }
 
     alive[cid] = 0;
 
@@ -170,6 +177,9 @@ static void start_game(void) {
     // noklusējuma īpašības
     for (int i = 0; i < MAX_PLAYERS; i++) {
         bomb_count[i] = 1; // sākumā 1 bumba
+        pl_speed[i] = g_cfg.pl_speed;
+        pl_radiuss[i] = g_cfg.exp_distance;
+        pl_fuse[i] = g_cfg.fuse_time;
     }
     // piešķiram starta pozīcijas un stāvokli spēlētājiem
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -184,6 +194,7 @@ static void start_game(void) {
     // inicializējam bumbu un sprādzienu stāvokli
     memset(bombs, 0, sizeof(bombs));
     memset(spradzieni, 0, sizeof(spradzieni));
+    memset(pl_ready, 0, sizeof(pl_ready));
     clock_gettime(CLOCK_MONOTONIC, &last_tick);
 
     server_status = GAME_RUNNING;
@@ -259,6 +270,9 @@ static void handle_move_attempt(int cid, uint8_t dir) {
             if (bomb_count[cid] < 255)
                 bomb_count[cid]++;   // +1 bumba
         }
+        if(t == TILE_FASTER) pl_speed[cid]++;
+        if(t == TILE_BIGGER) pl_radiuss[cid]++; 
+        if(t == TILE_LONGER) pl_fuse[cid]++;
 
         g_cfg.tiles[r][c] = TILE_FLOOR;// noņem bonusu no kartes
     }
@@ -297,8 +311,9 @@ static void handle_bomb_attempt(int cid) {
             bombs[i].aktivs = 1;
             bombs[i].x = c;
             bombs[i].y = r;
-            bombs[i].timer = g_cfg.fuse_time;
+            bombs[i].timer = pl_fuse[cid];
             bombs[i].owner = cid;
+            bombs[i].radiuss = pl_radiuss[cid];
             g_cfg.tiles[r][c] = TILE_BOMB;
 
             uint8_t buf[3];
@@ -419,9 +434,25 @@ static void handle_message(int cid, msg_header_t *h, uint8_t *payload) {
     // Spēles statusa maiņa (sākšana) - tikai hostam atļauts, un tikai lobby stadijā
     if (server_status == GAME_LOBBY) {
 
+        if(h->msg_type == MSG_SET_READY){
+            pl_ready[cid] = 1;
+            uint8_t buf[2] = {cid, 1};
+            broadcast_to_all(MSG_SET_READY, buf, 2);
+            return;
+        }
+
         if (h->msg_type == MSG_SET_STATUS && payload[0] == GAME_RUNNING) {
-            if (cid == host_id)
-                start_game();
+            if (cid == host_id){
+                int aready = 1;
+                for(int i=0; i<MAX_PLAYERS; i++){
+                    if(clients[i].connected && !pl_ready[i]){
+                        DBG("Player %d not ready\n", i);
+                        aready=0;
+                        break;
+                    }
+                }
+                if(aready) start_game();
+            }
             return;
         }
 
