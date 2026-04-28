@@ -41,6 +41,8 @@ typedef struct{
     int y;
     int id;
     int dzivs;
+    int atrums;
+    int radiuss;
 } Player;
 
 typedef struct{

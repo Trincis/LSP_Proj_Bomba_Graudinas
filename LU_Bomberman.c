@@ -72,7 +72,7 @@ int main(int argc, char *argv[]){
     memset(&config, 0, sizeof(config));
 
     int id = -1;
-    int px[MAX_PLAYERS], py[MAX_PLAYERS];
+    int px[MAX_PLAYERS], py[MAX_PLAYERS], patrums[MAX_PLAYERS], pradiuss[MAX_PLAYERS];
 
     int got_welcome = 0;
     int got_map = 0;
@@ -96,6 +96,10 @@ int main(int argc, char *argv[]){
             int pos = 0;
             config.row = buff[pos++];
             config.col = buff[pos++];
+            config.pl_speed = buff[pos++];
+            config.exp_distance = buff[pos++];
+            config.exp_danger = buff[pos++];
+            config.fuse_time = buff[pos++];
 
             for(int y=0; y<config.row; y++)
                 for(int x=0; x<config.col; x++)
@@ -104,6 +108,8 @@ int main(int argc, char *argv[]){
             for(int i=0; i<MAX_PLAYERS; i++){
                 px[i] = buff[pos++];
                 py[i] = buff[pos++];
+                patrums[i]  = config.pl_speed;
+                pradiuss[i] = config.exp_distance;
             }
 
             got_map = 1;
@@ -157,6 +163,11 @@ int main(int argc, char *argv[]){
                     int pos = 0;
                     config.row = sbuff[pos++];
                     config.col = sbuff[pos++];
+                    config.pl_speed = sbuff[pos++];
+                    config.exp_distance = sbuff[pos++];
+                    config.exp_danger = sbuff[pos++];
+                    config.fuse_time = sbuff[pos++];
+
 
                     for(int y=0; y<config.row; y++)
                         for(int x=0; x<config.col; x++)
@@ -166,6 +177,14 @@ int main(int argc, char *argv[]){
                         px[i] = sbuff[pos++];
                         py[i] = sbuff[pos++];
                     }
+                }
+                if(h.msg_type == MSG_BONUS_RETRIEVED){
+                    uint8_t pid = sbuff[0];
+                    uint8_t btype = sbuff[1];
+
+                    if(btype == TILE_FASTER) patrums[pid]++;
+                    if(btype == TILE_LONGER) config.fuse_time++;///vai tas tā domāts?
+                    if(btype == TILE_BIGGER) pradiuss[pid]++; 
                 }
 
                 int more = 0;
@@ -190,6 +209,7 @@ int main(int argc, char *argv[]){
             }
         }
 
+        mvwprintw(win, config.row+1, 0 ,"Speed: %d Radius: %d", patrums[id], pradiuss[id]);
         wrefresh(win);
     }
 

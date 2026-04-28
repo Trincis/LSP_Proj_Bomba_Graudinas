@@ -45,6 +45,10 @@ void send_map_to_all() {
 
     buf[pos++] = g_cfg.row;
     buf[pos++] = g_cfg.col;
+    buf[pos++] = g_cfg.pl_speed;
+    buf[pos++] = g_cfg.exp_distance;
+    buf[pos++] = g_cfg.exp_danger;
+    buf[pos++] = g_cfg.fuse_time;
 
     for (int y = 0; y < g_cfg.row; y++)
         for (int x = 0; x < g_cfg.col; x++)
