@@ -361,9 +361,9 @@ lobby_start:
                     clear();
 
                     if (sbuff[0] == id) {
-                        mvprintw(LINES/2, COLS/2 - 8, "TU ESI UZVARĒJIS!");
+                        mvprintw(LINES/2, COLS/2 - 8, "YOU WIN!");
                     } else {
-                        mvprintw(LINES/2, COLS/2 - 8, "TU ESI ZAUDĒJIS!");
+                        mvprintw(LINES/2, COLS/2 - 8, "WASTED");
                     }
 
                     refresh();
