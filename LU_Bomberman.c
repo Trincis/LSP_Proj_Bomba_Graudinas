@@ -1,8 +1,3 @@
-/*
-klient =  ./client 2> client.log
-serveris =   ./bomberman_server
-*/
-
 #include "src/game.h"
 #include "src/network.h"
 #include "src/protocol.h"
@@ -76,9 +71,7 @@ int main(int argc, char *argv[]){
         pradiuss[i] = 1;
     }
 
-    // ============================
-    // 1) SAGAIDĀM WELCOME + STATUS + MAP
-    // ============================
+    //sagaidam welcome, kurā būs mūsu ID un vai esam host
     while(!got_welcome){
         msg_header_t h;
         uint8_t buff[65536];
@@ -90,12 +83,9 @@ int main(int argc, char *argv[]){
             return 1;
         }
 
-        DBG("Received msg_type=%d\n", h.msg_type);
-
         if(h.msg_type == MSG_WELCOME){
             id = h.target_id;
             is_host = (id == 0);
-            DBG("GOT WELCOME, id=%d host=%d\n", id, is_host);
             got_welcome = 1;
         }
 
@@ -129,9 +119,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // ============================
-    // 2) NCURSES START
-    // ============================
+    //Ncurses start
     initscr();
     cbreak();
     noecho();
@@ -140,12 +128,18 @@ int main(int argc, char *argv[]){
     clear();
     refresh();
 
-    // ============================
+lobby_start:
+    // reset stāvokli nākamajai spēlei
+    game_status = GAME_LOBBY;
+    got_map = 0;
+    for(int i=0;i<MAX_PLAYERS;i++){
+        ready_flags[i] = 0;
+        px[i] = py[i] = 255;
+    }
+
     // 3) LOBBY CIKLS
-    // ============================
     while(game_status == GAME_LOBBY){
 
-        // Lasām servera ziņas
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sock, &fds);
@@ -166,7 +160,8 @@ int main(int argc, char *argv[]){
                 if(h.msg_type == MSG_SET_READY){
                     int pid = sbuff[0];
                     int val = sbuff[1];
-                    ready_flags[pid] = val;
+                    if(pid >= 0 && pid < MAX_PLAYERS)
+                        ready_flags[pid] = val;
                 }
 
                 if(h.msg_type == MSG_MAP_SELECT){
@@ -200,7 +195,6 @@ int main(int argc, char *argv[]){
             }
         }
 
-        // Zīmē lobby ekrānu
         clear();
         mvprintw(0, 0, "Bomberman LOBBY");
         mvprintw(1, 0, "ID=%d HOST=%d", id, is_host);
@@ -241,9 +235,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // ============================
-    // 4) SAGAIDĀM MAP, JA NAV
-    // ============================
+    //gaidam map ja nav tāda
     while(!got_map){
         msg_header_t h;
         uint8_t sbuff[65536];
@@ -277,15 +269,11 @@ int main(int argc, char *argv[]){
         }
     }
 
-    // ============================
-    // 5) SPĒLES CIKLS
-    // ============================
+    //spēles cikls
     WINDOW *win = newwin(config.row+2, config.col*2+1, 1, 0);
     keypad(win, TRUE);
-    nodelay(win, FALSE);
     wtimeout(win, 50);
 
-    // Uzzīmē karti UZREIZ
     werase(win);
     map_render(win, &config);
 
@@ -301,15 +289,18 @@ int main(int argc, char *argv[]){
 
         int ch = wgetch(win);
 
-        if(ch == 'q'){
-            break;
-        }
+        // SPECTATE MODE: miris spēlētājs paliek skatīties, bet nevar kustēties
+        if(px[id] == 255 && py[id] == 255){
+            // tikai skatās
+        } else {
+            if(ch == 'q') break;
 
-        if(ch == 'w'){ uint8_t v='U'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if(ch == 's'){ uint8_t v='D'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if(ch == 'a'){ uint8_t v='L'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if(ch == 'd'){ uint8_t v='R'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
-        if(ch == ' '){ uint8_t v=0;  send_msg(sock, MSG_BOMB_ATTEMPT, id, SERVER_ID, &v, 1); }
+            if(ch == 'w'){ uint8_t v='U'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+            if(ch == 's'){ uint8_t v='D'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+            if(ch == 'a'){ uint8_t v='L'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+            if(ch == 'd'){ uint8_t v='R'; send_msg(sock, MSG_MOVE_ATTEMPT, id, SERVER_ID, &v, 1); }
+            if(ch == ' '){ uint8_t v=0;  send_msg(sock, MSG_BOMB_ATTEMPT, id, SERVER_ID, &v, 1); }
+        }
 
         fd_set fds;
         FD_ZERO(&fds);
@@ -356,28 +347,31 @@ int main(int argc, char *argv[]){
 
                     wrefresh(win);
                 }
-                //Nāve
+
                 if(h.msg_type == MSG_DEATH){
                     uint8_t pid = sbuff[0];
-                    px[pid] = 255;
-                    py[pid] = 255;
-
-                    if(pid == id){
-                        werase(win);
-                        mvwprintw(win, config.row/2, config.col-4, "Game Over");
-                        wrefresh(win);
-                        wgetch(win);
-                        goto cleanup;
+                    if(pid < MAX_PLAYERS){
+                        px[pid] = 255;
+                        py[pid] = 255;
                     }
                 }
-                //Bonuss saņemts
-                if(h.msg_type == MSG_BONUS_RETRIEVED){
-                    uint8_t pid = sbuff[0];
-                    uint8_t b = sbuff[1];
 
-                    if(b == TILE_FASTER) patrums[pid]++;
-                    if(b == TILE_BIGGER) pradiuss[pid]++;
-                    if(b == TILE_LONGER) config.fuse_time++;
+                if (h.msg_type == MSG_WINNER) {
+
+                    clear();
+
+                    if (sbuff[0] == id) {
+                        mvprintw(LINES/2, COLS/2 - 8, "TU ESI UZVARĒJIS!");
+                    } else {
+                        mvprintw(LINES/2, COLS/2 - 8, "TU ESI ZAUDĒJIS!");
+                    }
+
+                    refresh();
+                    sleep(5);
+
+                    // atpakaļ uz lobby nākamajai spēlei
+                    delwin(win);
+                    goto lobby_start;
                 }
 
                 int more = 0;
@@ -387,11 +381,10 @@ int main(int argc, char *argv[]){
         }
     }
 
-///Visa novākšana beigās
-cleanup:
+/*cleanup:
     send_msg(sock, MSG_LEAVE, id, SERVER_ID, NULL, 0);
     close(sock);
-    delwin(win);
     endwin();
     return 0;
+}*/
 }

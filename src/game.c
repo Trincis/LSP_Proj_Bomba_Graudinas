@@ -12,7 +12,7 @@ int game_config_load(GameConfig *config, const char *filename){
         return -1;
     }
 
-    // Header
+    //Nolasam kartes konfigurāciju
     if(fscanf(fin, "%d %d %d %d %d %d",
               &config->row,
               &config->col,
@@ -35,10 +35,11 @@ int game_config_load(GameConfig *config, const char *filename){
 
             char c;
             if (fscanf(fin, " %c", &c) != 1) {
-            fclose(fin);
-            return -1;
+                fclose(fin);
+                return -1;
             }
-            
+
+            // Spēlētāju sākuma pozīcijas: '0'..'7'
             if (c >= '0' && c <= '7') {
                 int id = c - '0';
                 config->player_spawn_x[id] = x;
@@ -48,14 +49,14 @@ int game_config_load(GameConfig *config, const char *filename){
             }
 
             switch(c){
-                case 'H': config->tiles[y][x] = TILE_WALL; break;
-                case 'S': config->tiles[y][x] = TILE_BLOCK; break;
-                case 'B': config->tiles[y][x] = TILE_BOMB; break;
+                case 'H': config->tiles[y][x] = TILE_WALL;   break;
+                case 'S': config->tiles[y][x] = TILE_BLOCK;  break;
+                case 'B': config->tiles[y][x] = TILE_BOMB;   break;
                 case 'A': config->tiles[y][x] = TILE_FASTER; break;
                 case 'R': config->tiles[y][x] = TILE_BIGGER; break;
                 case 'T': config->tiles[y][x] = TILE_LONGER; break;
-                case '*': config->tiles[y][x] = TILE_BOOM; break;
-                default:  config->tiles[y][x] = TILE_FLOOR; break;
+                case '*': config->tiles[y][x] = TILE_BOOM;   break;
+                default:  config->tiles[y][x] = TILE_FLOOR;  break;
             }
         }
     }
@@ -71,38 +72,14 @@ void map_render(WINDOW *w, const GameConfig *cfg){
             char ch;
 
             switch(cfg->tiles[y][x]){
-                case TILE_WALL:{
-                    ch='H';
-                    break;
-                }
-                case TILE_BLOCK:{
-                    ch='S';
-                    break;
-                }
-                case TILE_BOMB:{
-                    ch='B';
-                    break;
-                }
-                case TILE_FASTER:{
-                    ch='A';
-                    break;
-                }
-                case TILE_BIGGER:{
-                    ch='R';
-                    break;
-                }
-                case TILE_LONGER:{
-                    ch='T';
-                    break;
-                }
-                case TILE_BOOM:{
-                    ch='*';
-                    break;
-                }
-                default:{
-                    ch='.';
-                    break;
-                }
+                case TILE_WALL:   ch='H'; break;
+                case TILE_BLOCK:  ch='S'; break;
+                case TILE_BOMB:   ch='B'; break;
+                case TILE_FASTER: ch='A'; break;
+                case TILE_BIGGER: ch='R'; break;
+                case TILE_LONGER: ch='T'; break;
+                case TILE_BOOM:   ch='*'; break;
+                default:          ch='.'; break;
             }
             mvwaddch(w, y, x*2, ch);
         }
@@ -122,7 +99,7 @@ void players_render(WINDOW *w, const Player *speletaji, int sk){
 void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
     for(int i=0; i<sk; i++){
         if(bumbas[i].aktivs){
-            mvwaddch(w, bumbas[i].y,bumbas[i].x*2, 'B');
+            mvwaddch(w, bumbas[i].y, bumbas[i].x*2, 'B');
         }
     }
     wrefresh(w);
@@ -131,36 +108,34 @@ void bombs_render(WINDOW *w, const Bomb *bumbas, int sk){
 
 void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
 {
-    // 1) Samazina bumbu taimerus
+    //Samazina bumbu taimerus
     for (int i = 0; i < MAX_BOMBS; i++) {
         if (!bombs[i].aktivs)
             continue;
 
         bombs[i].timer--;
 
-        // Ja vēl nav jāsprāgst — turpinām
         if (bombs[i].timer > 0)
             continue;
 
-        // 2) Bumba sprāgst
+        //Bumba sprāgst
         int bx = bombs[i].x;
         int by = bombs[i].y;
 
-        // Notīra bumbu no kartes
         cfg->tiles[by][bx] = TILE_BOOM;
 
-        // 3) Izveido centrālo sprādzienu
+        // centrālais sprādziens
         for (int s = 0; s < MAX_BOOM; s++) {
             if (!spradzieni[s].aktivs) {
                 spradzieni[s].aktivs = 1;
                 spradzieni[s].x = bx;
                 spradzieni[s].y = by;
-                spradzieni[s].timer = 5;
+                spradzieni[s].timer = cfg->exp_danger;   // ← svarīgi!
                 break;
             }
         }
 
-        // 4) Sprādziena izplatīšanās
+        // sprādziena izplatīšana
         int virz[4][2] = {
             {0,-1}, {0,1}, {-1,0}, {1,0}
         };
@@ -177,42 +152,41 @@ void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
                 if (cfg->tiles[ny][nx] == TILE_WALL)
                     break;
 
-                // Ja ir bloks — iznīcina un apstājas
+                // bloks
                 if (cfg->tiles[ny][nx] == TILE_BLOCK) {
-                    cfg->tiles[ny][nx] = TILE_FLOOR;
+                    cfg->tiles[ny][nx] = TILE_BOOM;
 
                     for (int s = 0; s < MAX_BOOM; s++) {
                         if (!spradzieni[s].aktivs) {
                             spradzieni[s].aktivs = 1;
                             spradzieni[s].x = nx;
                             spradzieni[s].y = ny;
-                            spradzieni[s].timer = 5;
+                            spradzieni[s].timer = cfg->exp_danger;
                             break;
                         }
                     }
                     break;
                 }
 
-                // Parasts sprādziena laukums
+                // parasts sprādziena laukums
+                cfg->tiles[ny][nx] = TILE_BOOM;
+
                 for (int s = 0; s < MAX_BOOM; s++) {
                     if (!spradzieni[s].aktivs) {
                         spradzieni[s].aktivs = 1;
                         spradzieni[s].x = nx;
                         spradzieni[s].y = ny;
-                        spradzieni[s].timer = 5;
+                        spradzieni[s].timer = cfg->exp_danger*3;
                         break;
                     }
                 }
-
-                cfg->tiles[ny][nx] = TILE_BOOM;
             }
         }
 
-        // 5) Bumba vairs nav aktīva
         bombs[i].aktivs = 0;
     }
 
-    // 6) Sprādzienu animācija (pazūd pēc 5 tickiem)
+    //sprādziena animācija un seku likvidēšana
     for (int i = 0; i < MAX_BOOM; i++) {
         if (!spradzieni[i].aktivs)
             continue;
@@ -220,7 +194,9 @@ void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
         spradzieni[i].timer--;
 
         if (spradzieni[i].timer <= 0) {
-            cfg->tiles[spradzieni[i].y][spradzieni[i].x] = TILE_FLOOR;
+            if (cfg->tiles[spradzieni[i].y][spradzieni[i].x] == TILE_BOOM)
+                cfg->tiles[spradzieni[i].y][spradzieni[i].x] = TILE_FLOOR;
+
             spradzieni[i].aktivs = 0;
         }
     }
