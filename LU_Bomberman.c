@@ -115,6 +115,19 @@ int main(int argc, char *argv[]){
     keypad(stdscr, TRUE);// Iespējo speciālo taustiņu atpazīšanu (piemēram, bultiņas)
     curs_set(0);// Paslēpj kursoru
 
+    //Krāsiņas!!!
+    start_color();
+
+    init_pair(1, COLOR_BLUE, COLOR_BLACK);
+    init_pair(2, COLOR_CYAN, COLOR_BLACK);
+    init_pair(3, COLOR_GREEN, COLOR_BLACK);
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(5, COLOR_RED, COLOR_BLACK);
+    init_pair(6, COLOR_WHITE, COLOR_BLACK);
+    init_pair(7, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(8, COLOR_BLUE, COLOR_BLACK); ///nepietiek krāsiņu :(
+    
+
 lobby_start:
     game_status = GAME_LOBBY;
     got_map = 0;
@@ -424,7 +437,9 @@ lobby_start:
 
         for(int i=0;i<MAX_PLAYERS;i++){
             if(px[i]!=255 && py[i]!=255){
+                wattron(win, COLOR_PAIR(i+1));
                 mvwaddch(win, py[i], px[i]*2, (i==id?'@':'0'+i));
+                wattroff(win, COLOR_PAIR(i+1));
             }
         }
 
