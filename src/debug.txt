@@ -1,3 +1,0 @@
-Loaded: 6 rows, 9 cols
-Tile[0][0] = H
-Terminal size: 24 rows, 80 cols

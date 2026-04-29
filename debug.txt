@@ -1,1 +1,0 @@
-Player 1 spawn: x=1 y=0 alive=1
