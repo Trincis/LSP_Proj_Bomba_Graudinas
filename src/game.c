@@ -179,6 +179,16 @@ void Spragsti(GameConfig *cfg, Bomb *bombs, BOOM *spradzieni)
                     break;
                 }
 
+                if(cfg->tiles[ny][nx] == TILE_BOMB){
+                    for(int j = 0; j<MAX_BOMBS; j++){
+                        if(bombs[j].aktivs && bombs[j].x == nx && bombs[j].y == ny){
+                            bombs[j].timer = 1;
+                            break;
+                        }
+                    }
+                    break;
+                }
+
                 // parasts sprādziena laukums
                 cfg->tiles[ny][nx] = TILE_BOOM;
 
